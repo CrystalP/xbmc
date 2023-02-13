@@ -97,6 +97,22 @@ bool CSettingGroup::Deserialize(const TiXmlNode *node, bool update /* = false */
     }
   }
 
+  auto dependencies = node->FirstChild(SETTING_XML_ELM_DEPENDENCIES);
+  if (dependencies != nullptr)
+  {
+    auto dependencyNode = dependencies->FirstChild(SETTING_XML_ELM_DEPENDENCY);
+    while (dependencyNode != nullptr)
+    {
+      CSettingDependency dependency(m_settingsManager);
+      if (dependency.Deserialize(dependencyNode))
+        m_dependencies.push_back(dependency);
+      else
+        s_logger->warn("error reading <{}> tag of \"{}\"", SETTING_XML_ELM_DEPENDENCY, m_id);
+
+      dependencyNode = dependencyNode->NextSibling(SETTING_XML_ELM_DEPENDENCY);
+    }
+  }
+
   auto settingElement = node->FirstChildElement(SETTING_XML_ELM_SETTING);
   while (settingElement != nullptr)
   {
@@ -193,6 +209,27 @@ bool CSettingGroup::ReplaceSetting(const std::shared_ptr<const CSetting>& curren
   }
 
   return false;
+}
+
+bool CSettingGroup::IsVisible() const
+{
+  if (!ISetting::IsVisible())
+    return false;
+
+  bool visible = true;
+  for (const auto& dep : m_dependencies)
+  {
+    if (dep.GetType() != SettingDependencyType::Visible)
+      continue;
+
+    if (!dep.Check())
+    {
+      visible = false;
+      break;
+    }
+  }
+
+  return visible;
 }
 
 Logger CSettingCategory::s_logger;

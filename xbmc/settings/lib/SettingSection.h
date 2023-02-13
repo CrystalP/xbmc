@@ -65,10 +65,13 @@ public:
   std::shared_ptr<const ISettingControl> GetControl() const { return m_control; }
   std::shared_ptr<ISettingControl> GetControl() { return m_control; }
   void SetControl(std::shared_ptr<ISettingControl> control) { m_control = std::move(control); }
+  // override of ISetting
+  bool IsVisible() const override;
 
 private:
   SettingList m_settings;
   std::shared_ptr<ISettingControl> m_control;
+  SettingDependencies m_dependencies;
 
   static Logger s_logger;
 };
