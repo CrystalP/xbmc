@@ -182,7 +182,7 @@ bool CRendererBase::Configure(const VideoPicture& picture, float fps, unsigned o
   m_ditherDepth = CServiceBroker::GetSettingsComponent()->GetSettings()->GetInt("videoscreen.ditherdepth");
 
   m_lastHdr10 = {};
-  m_HdrType = HDR_TYPE::HDR_NONE_SDR;
+  m_HdrType = HDR_TYPE::HDR_UNKNOWN;
   m_useHLGtoPQ = false;
   m_AutoSwitchHDR = CServiceBroker::GetSettingsComponent()->GetSettings()->GetBool(
                         DX::Windowing()->SETTING_WINSYSTEM_IS_HDR_DISPLAY) &&
@@ -578,6 +578,9 @@ void CRendererBase::ProcessHDR(CRenderBuffer* rb)
   {
     if (m_HdrType != HDR_TYPE::HDR_NONE_SDR)
     {
+      // Switch to SDR rendering
+      CLog::LogF(LOGINFO, "Switching to SDR rendering");
+      DX::Windowing()->SetHdrColorSpace(DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709);
       m_HdrType = HDR_TYPE::HDR_NONE_SDR;
       m_lastHdr10 = {};
     }

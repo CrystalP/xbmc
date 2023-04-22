@@ -48,9 +48,10 @@ enum RenderMethod
 
 enum class HDR_TYPE
 {
-  HDR_NONE_SDR = 0,
-  HDR_HDR10 = 1,
-  HDR_HLG = 2
+  HDR_UNKNOWN,
+  HDR_NONE_SDR,
+  HDR_HDR10,
+  HDR_HLG,
 };
 
 class CRenderBuffer
