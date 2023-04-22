@@ -623,9 +623,9 @@ void DX::DeviceResources::ResizeBuffers()
     DXGI_ADAPTER_DESC ad = {};
     GetAdapterDesc(&ad);
 
-    // Some AMD graphics has issues with 10 bit in SDR.
-    // Enabled by default only in Intel and NVIDIA with latest drivers/hardware
-    if (m_d3dFeatureLevel < D3D_FEATURE_LEVEL_12_1 || ad.VendorId == PCIV_AMD)
+    // Swap Chain Color Space API needed for consistent results with 10 bit output
+    // Not available before Windows 10
+    if (!CSysInfo::IsWindowsVersionAtLeast(CSysInfo::WindowsVersionWin10))
       use10bit = false;
 #endif
 
