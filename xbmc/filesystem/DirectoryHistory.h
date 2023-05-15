@@ -22,6 +22,7 @@ public:
     virtual ~CHistoryItem() = default;
     std::string m_strItem;
     std::string m_strDirectory;
+    int m_indexItem{-1};
   };
 
   class CPathHistoryItem
@@ -39,8 +40,10 @@ public:
   CDirectoryHistory() = default;
   virtual ~CDirectoryHistory();
 
-  void SetSelectedItem(const std::string& strSelectedItem, const std::string& strDirectory);
-  const std::string& GetSelectedItem(const std::string& strDirectory) const;
+  void SetSelectedItem(const std::string& strSelectedItem,
+                       const std::string& strDirectory,
+                       const int indexItem);
+  const CHistoryItem& GetSelectedItem(const std::string& strDirectory) const;
   void RemoveSelectedItem(const std::string& strDirectory);
 
   void AddPath(const std::string& strPath, const std::string &m_strFilterPath = "");
@@ -64,4 +67,5 @@ private:
   HistoryMap m_vecHistory;
   std::vector<CPathHistoryItem> m_vecPathHistory; ///< History of traversed directories
   static bool IsMusicSearchUrl(CPathHistoryItem &i);
+  const CHistoryItem m_dummyHistoryItem{};
 };

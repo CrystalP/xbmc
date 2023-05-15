@@ -1310,14 +1310,15 @@ void CGUIMediaWindow::SaveSelectedItemInHistory()
     GetDirectoryHistoryString(pItem.get(), strSelectedItem);
   }
 
-  m_history.SetSelectedItem(strSelectedItem, m_vecItems->GetPath());
+  m_history.SetSelectedItem(strSelectedItem, m_vecItems->GetPath(), iItem);
 }
 
 void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 {
-  std::string strSelectedItem = m_history.GetSelectedItem(m_vecItems->GetPath());
+  const CDirectoryHistory::CHistoryItem histItem = m_history.GetSelectedItem(m_vecItems->GetPath());
+  //std::string strSelectedItem = m_history.GetSelectedItem(m_vecItems->GetPath());
 
-  if (!strSelectedItem.empty())
+  if (!histItem.m_strItem.empty())
   {
     for (int i = 0; i < m_vecItems->Size(); ++i)
     {
@@ -1325,7 +1326,7 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
       std::string strHistory;
       GetDirectoryHistoryString(pItem.get(), strHistory);
       // set selected item if equals with history
-      if (strHistory == strSelectedItem)
+      if (strHistory == histItem.m_strItem)
       {
         m_viewControl.SetSelectedItem(i);
         return;
@@ -1333,7 +1334,19 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
     }
   }
 
-  // if we haven't found the selected item, select the first item
+  // The item may not exist anymore, it could be filtered by the watch status filter, or other filter
+  // Restore the selection position
+  
+  if (histItem.m_indexItem >= 0 && m_vecItems->Size() > 0)
+  {
+    if (histItem.m_indexItem < m_vecItems->Size())
+      m_viewControl.SetSelectedItem(histItem.m_indexItem);
+    else
+      m_viewControl.SetSelectedItem(m_vecItems->Size() - 1);
+    return;
+  }
+
+  // Item not found and index not available, select the first item
   m_viewControl.SetSelectedItem(0);
 }
 
@@ -1435,7 +1448,7 @@ void CGUIMediaWindow::SetHistoryForPath(const std::string& strDirectory)
         {
           std::string strHistory;
           GetDirectoryHistoryString(pItem.get(), strHistory);
-          m_history.SetSelectedItem(strHistory, "");
+          m_history.SetSelectedItem(strHistory, "", 0);
           URIUtils::AddSlashAtEnd(strPath);
           m_history.AddPathFront(strPath);
           m_history.AddPathFront("");
@@ -1459,7 +1472,7 @@ void CGUIMediaWindow::SetHistoryForPath(const std::string& strDirectory)
         URIUtils::AddSlashAtEnd(strPath);
 
       m_history.AddPathFront(strPath, originalPath ? m_strFilterPath : "");
-      m_history.SetSelectedItem(strPath, strParentPath);
+      m_history.SetSelectedItem(strPath, strParentPath, 0);
       originalPath = false;
       strPath = strParentPath;
       URIUtils::RemoveSlashAtEnd(strPath);

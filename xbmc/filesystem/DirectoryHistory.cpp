@@ -35,7 +35,9 @@ void CDirectoryHistory::RemoveSelectedItem(const std::string& strDirectory)
     m_vecHistory.erase(iter);
 }
 
-void CDirectoryHistory::SetSelectedItem(const std::string& strSelectedItem, const std::string& strDirectory)
+void CDirectoryHistory::SetSelectedItem(const std::string& strSelectedItem,
+                                        const std::string& strDirectory,
+                                        const int indexItem)
 {
   if (strSelectedItem.empty())
     return;
@@ -47,22 +49,24 @@ void CDirectoryHistory::SetSelectedItem(const std::string& strSelectedItem, cons
   if (iter != m_vecHistory.end())
   {
     iter->second.m_strItem = strItem;
+    iter->second.m_indexItem = indexItem;
     return;
   }
 
   CHistoryItem item;
   item.m_strItem = strItem;
   item.m_strDirectory = strDir;
+  item.m_indexItem = indexItem;
   m_vecHistory[strDir] = item;
 }
 
-const std::string& CDirectoryHistory::GetSelectedItem(const std::string& strDirectory) const
+const CDirectoryHistory::CHistoryItem& CDirectoryHistory::GetSelectedItem(const std::string& strDirectory) const
 {
   HistoryMap::const_iterator iter = m_vecHistory.find(preparePath(strDirectory));
   if (iter != m_vecHistory.end())
-    return iter->second.m_strItem;
+    return iter->second;
 
-  return StringUtils::Empty;
+  return m_dummyHistoryItem;
 }
 
 void CDirectoryHistory::AddPath(const std::string& strPath, const std::string &strFilterPath /* = "" */)
