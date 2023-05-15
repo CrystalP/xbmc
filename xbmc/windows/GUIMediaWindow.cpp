@@ -1316,7 +1316,6 @@ void CGUIMediaWindow::SaveSelectedItemInHistory()
 void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 {
   const CDirectoryHistory::CHistoryItem histItem = m_history.GetSelectedItem(m_vecItems->GetPath());
-  //std::string strSelectedItem = m_history.GetSelectedItem(m_vecItems->GetPath());
 
   if (!histItem.m_strItem.empty())
   {
@@ -1334,15 +1333,14 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
     }
   }
 
-  // The item may not exist anymore, it could be filtered by the watch status filter, or other filter
+  // The item may not exist anymore or it could be filtered out
   // Restore the selection position
-  
   if (histItem.m_indexItem >= 0 && m_vecItems->Size() > 0)
   {
-    if (histItem.m_indexItem < m_vecItems->Size())
-      m_viewControl.SetSelectedItem(histItem.m_indexItem);
-    else
-      m_viewControl.SetSelectedItem(m_vecItems->Size() - 1);
+    int newIndex =
+        histItem.m_indexItem < m_vecItems->Size() ? histItem.m_indexItem : m_vecItems->Size() - 1;
+
+    m_viewControl.SetSelectedItem(newIndex);
     return;
   }
 
