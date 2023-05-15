@@ -345,7 +345,7 @@ void CGUIDialogFileBrowser::Update(const std::string &strDirectory)
     {
       strSelectedItem = pItem->GetPath();
       URIUtils::RemoveSlashAtEnd(strSelectedItem);
-      m_history.SetSelectedItem(strSelectedItem, m_Directory->GetPath().empty()?"empty":m_Directory->GetPath());
+      m_history.SetSelectedItem(strSelectedItem, m_Directory->GetPath().empty()?"empty":m_Directory->GetPath(), iItem);
     }
   }
 
@@ -441,7 +441,9 @@ void CGUIDialogFileBrowser::Update(const std::string &strDirectory)
 
   std::string strPath2 = m_Directory->GetPath();
   URIUtils::RemoveSlashAtEnd(strPath2);
-  strSelectedItem = m_history.GetSelectedItem(strPath2==""?"empty":strPath2);
+  const CDirectoryHistory::CHistoryItem* selectedItem =
+      m_history.GetSelectedItem(strPath2 == "" ? "empty" : strPath2);
+  strSelectedItem = selectedItem ? selectedItem->GetStrItem() : "";
 
   bool bSelectedFound = false;
   for (int i = 0; i < m_vecItems->Size(); ++i)

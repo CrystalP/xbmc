@@ -1310,13 +1310,21 @@ void CGUIMediaWindow::SaveSelectedItemInHistory()
     GetDirectoryHistoryString(pItem.get(), strSelectedItem);
   }
 
-  m_history.SetSelectedItem(strSelectedItem, m_vecItems->GetPath());
+  m_history.SetSelectedItem(strSelectedItem, m_vecItems->GetPath(), iItem);
 }
 
 void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 {
-  std::string strSelectedItem = m_history.GetSelectedItem(m_vecItems->GetPath());
+  const CDirectoryHistory::CHistoryItem* selectedItem =
+      m_history.GetSelectedItem(m_vecItems->GetPath());
 
+  if (!selectedItem)
+  {
+    m_viewControl.SetSelectedItem(0);
+    return;
+  }
+
+  std::string_view strSelectedItem = selectedItem->GetStrItem();
   if (!strSelectedItem.empty())
   {
     for (int i = 0; i < m_vecItems->Size(); ++i)
@@ -1333,7 +1341,16 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
     }
   }
 
-  // if we haven't found the selected item, select the first item
+  // Exact item not found - maybe deleted, watched status change, filtered out, ...
+  // Attempt to restore the position of the selection
+  if (selectedItem->GetIndexItem() >= 0 && m_vecItems->Size() > 0)
+  {
+    int newIndex = std::min(selectedItem->GetIndexItem(), m_vecItems->Size() - 1);
+
+    m_viewControl.SetSelectedItem(newIndex);
+    return;
+  }
+  // Fallback: select the first item
   m_viewControl.SetSelectedItem(0);
 }
 
@@ -1435,7 +1452,7 @@ void CGUIMediaWindow::SetHistoryForPath(const std::string& strDirectory)
         {
           std::string strHistory;
           GetDirectoryHistoryString(pItem.get(), strHistory);
-          m_history.SetSelectedItem(strHistory, "");
+          m_history.SetSelectedItem(strHistory, "", -1);
           URIUtils::AddSlashAtEnd(strPath);
           m_history.AddPathFront(strPath);
           m_history.AddPathFront("");
@@ -1459,7 +1476,7 @@ void CGUIMediaWindow::SetHistoryForPath(const std::string& strDirectory)
         URIUtils::AddSlashAtEnd(strPath);
 
       m_history.AddPathFront(strPath, originalPath ? m_strFilterPath : "");
-      m_history.SetSelectedItem(strPath, strParentPath);
+      m_history.SetSelectedItem(strPath, strParentPath, -1);
       originalPath = false;
       strPath = strParentPath;
       URIUtils::RemoveSlashAtEnd(strPath);
