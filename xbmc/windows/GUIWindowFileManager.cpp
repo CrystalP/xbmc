@@ -550,7 +550,7 @@ bool CGUIWindowFileManager::Update(int iList, const std::string &strDirectory)
   UpdateButtons();
 
   int item = 0;
-  strSelectedItem = m_history[iList].GetSelectedItem(m_Directory[iList]->GetPath()).m_strItem;
+  strSelectedItem = m_history[iList].GetSelectedItem(m_Directory[iList]->GetPath()).GetStrItem();
   for (int i = 0; i < m_vecItems[iList]->Size(); ++i)
   {
     CFileItemPtr pItem = m_vecItems[iList]->Get(i);

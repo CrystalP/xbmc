@@ -37,13 +37,28 @@ public:
     std::string m_strFilterPath;
   };
 
+  class CHistorySelectedItem
+  {
+  public:
+    CHistorySelectedItem(bool found, std::string_view strItem, int indexItem);
+    virtual ~CHistorySelectedItem() = default;
+    bool Found() const { return m_found; }
+    std::string_view GetStrItem() const { return m_strItemV; }
+    int GetIndexItem() const { return m_indexItem; }
+
+  private:
+    bool m_found;
+    std::string_view m_strItemV;
+    int m_indexItem;
+  };
+
   CDirectoryHistory() = default;
   virtual ~CDirectoryHistory();
 
   void SetSelectedItem(const std::string& strSelectedItem,
                        const std::string& strDirectory,
                        const int indexItem);
-  const CHistoryItem& GetSelectedItem(const std::string& strDirectory) const;
+  const CHistorySelectedItem GetSelectedItem(const std::string& strDirectory) const;
   void RemoveSelectedItem(const std::string& strDirectory);
 
   void AddPath(const std::string& strPath, const std::string &m_strFilterPath = "");
@@ -67,5 +82,4 @@ private:
   HistoryMap m_vecHistory;
   std::vector<CPathHistoryItem> m_vecPathHistory; ///< History of traversed directories
   static bool IsMusicSearchUrl(CPathHistoryItem &i);
-  const CHistoryItem m_dummyHistoryItem{};
 };

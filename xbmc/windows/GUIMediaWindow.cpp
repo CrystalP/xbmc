@@ -1315,9 +1315,12 @@ void CGUIMediaWindow::SaveSelectedItemInHistory()
 
 void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 {
-  const CDirectoryHistory::CHistoryItem histItem = m_history.GetSelectedItem(m_vecItems->GetPath());
+  const CDirectoryHistory::CHistorySelectedItem histItem = m_history.GetSelectedItem(m_vecItems->GetPath());
 
-  if (!histItem.m_strItem.empty())
+  if (!histItem.Found())
+    m_viewControl.SetSelectedItem(0);
+
+  if (!histItem.GetStrItem().empty())
   {
     for (int i = 0; i < m_vecItems->Size(); ++i)
     {
@@ -1325,7 +1328,7 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
       std::string strHistory;
       GetDirectoryHistoryString(pItem.get(), strHistory);
       // set selected item if equals with history
-      if (strHistory == histItem.m_strItem)
+      if (strHistory == histItem.GetStrItem())
       {
         m_viewControl.SetSelectedItem(i);
         return;
@@ -1335,10 +1338,10 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 
   // The item may not exist anymore or it could be filtered out
   // Restore the selection position
-  if (histItem.m_indexItem >= 0 && m_vecItems->Size() > 0)
+  if (histItem.GetIndexItem() >= 0 && m_vecItems->Size() > 0)
   {
-    int newIndex =
-        histItem.m_indexItem < m_vecItems->Size() ? histItem.m_indexItem : m_vecItems->Size() - 1;
+    int newIndex = histItem.GetIndexItem() < m_vecItems->Size() ? histItem.GetIndexItem()
+                                                                : m_vecItems->Size() - 1;
 
     m_viewControl.SetSelectedItem(newIndex);
     return;
