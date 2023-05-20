@@ -40,14 +40,13 @@ public:
   class CHistorySelectedItem
   {
   public:
-    CHistorySelectedItem(bool found, std::string_view strItem, int indexItem);
+    CHistorySelectedItem() = default;
+    CHistorySelectedItem(std::string_view strItem, int indexItem);
     virtual ~CHistorySelectedItem() = default;
-    bool Found() const { return m_found; }
     std::string_view GetStrItem() const { return m_strItemV; }
     int GetIndexItem() const { return m_indexItem; }
 
   private:
-    bool m_found;
     std::string_view m_strItemV;
     int m_indexItem;
   };

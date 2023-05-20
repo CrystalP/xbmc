@@ -14,10 +14,9 @@
 
 #include <algorithm>
 
-CDirectoryHistory::CHistorySelectedItem::CHistorySelectedItem(
-    bool found, std::string_view strItem, int indexItem)
+CDirectoryHistory::CHistorySelectedItem::CHistorySelectedItem(std::string_view strItem,
+                                                              int indexItem)
 {
-  m_found = found;
   m_strItemV = strItem;
   m_indexItem = indexItem;
 }
@@ -73,10 +72,10 @@ const CDirectoryHistory::CHistorySelectedItem CDirectoryHistory::GetSelectedItem
 {
   HistoryMap::const_iterator iter = m_vecHistory.find(preparePath(strDirectory));
   if (iter != m_vecHistory.end())
-    return CDirectoryHistory::CHistorySelectedItem(true, iter->second.m_strItem,
+    return CDirectoryHistory::CHistorySelectedItem(iter->second.m_strItem,
                                                    iter->second.m_indexItem);
 
-  return CDirectoryHistory::CHistorySelectedItem(false, "", -1);
+  return CDirectoryHistory::CHistorySelectedItem();
 }
 
 void CDirectoryHistory::AddPath(const std::string& strPath, const std::string &strFilterPath /* = "" */)
