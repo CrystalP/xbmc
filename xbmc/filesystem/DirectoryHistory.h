@@ -18,8 +18,12 @@ public:
   class CHistoryItem
   {
   public:
-    CHistoryItem() = default;
+    CHistoryItem(std::string_view strItem, int indexItem);
     virtual ~CHistoryItem() = default;
+    std::string_view GetStrItem() const { return m_strItem; }
+    int GetIndexItem() const { return m_indexItem; }
+
+  private:
     std::string m_strItem;
     std::string m_strDirectory;
     int m_indexItem{-1};
@@ -37,27 +41,13 @@ public:
     std::string m_strFilterPath;
   };
 
-  class CHistorySelectedItem
-  {
-  public:
-    CHistorySelectedItem() = default;
-    CHistorySelectedItem(std::string_view strItem, int indexItem);
-    virtual ~CHistorySelectedItem() = default;
-    std::string_view GetStrItem() const { return m_strItemV; }
-    int GetIndexItem() const { return m_indexItem; }
-
-  private:
-    std::string_view m_strItemV;
-    int m_indexItem;
-  };
-
   CDirectoryHistory() = default;
   virtual ~CDirectoryHistory();
 
   void SetSelectedItem(const std::string& strSelectedItem,
                        const std::string& strDirectory,
-                       const int indexItem);
-  const CHistorySelectedItem GetSelectedItem(const std::string& strDirectory) const;
+                       const int indexItem = -1);
+  const CHistoryItem* GetSelectedItem(const std::string& strDirectory) const;
   void RemoveSelectedItem(const std::string& strDirectory);
 
   void AddPath(const std::string& strPath, const std::string &m_strFilterPath = "");

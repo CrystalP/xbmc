@@ -478,7 +478,7 @@ bool CGUIWindowFileManager::Update(int iList, const std::string &strDirectory)
     return false;
   }
 
-  m_history[iList].SetSelectedItem(strSelectedItem, strOldDirectory, 0); // TODO: really not sure about 0 !!!
+  m_history[iList].SetSelectedItem(strSelectedItem, strOldDirectory, -1);
 
   ClearFileItems(iList);
 
@@ -550,7 +550,10 @@ bool CGUIWindowFileManager::Update(int iList, const std::string &strDirectory)
   UpdateButtons();
 
   int item = 0;
-  strSelectedItem = m_history[iList].GetSelectedItem(m_Directory[iList]->GetPath()).GetStrItem();
+  const CDirectoryHistory::CHistoryItem* selectedItem =
+      m_history[iList].GetSelectedItem(m_Directory[iList]->GetPath());
+  strSelectedItem = selectedItem ? selectedItem->GetStrItem() : "";
+
   for (int i = 0; i < m_vecItems[iList]->Size(); ++i)
   {
     CFileItemPtr pItem = m_vecItems[iList]->Get(i);

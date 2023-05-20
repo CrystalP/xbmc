@@ -14,10 +14,9 @@
 
 #include <algorithm>
 
-CDirectoryHistory::CHistorySelectedItem::CHistorySelectedItem(std::string_view strItem,
-                                                              int indexItem)
+CDirectoryHistory::CHistoryItem::CHistoryItem(std::string_view strItem, int indexItem)
 {
-  m_strItemV = strItem;
+  m_strItem = strItem;
   m_indexItem = indexItem;
 }
 
@@ -52,30 +51,17 @@ void CDirectoryHistory::SetSelectedItem(const std::string& strSelectedItem,
   std::string strDir = preparePath(strDirectory);
   std::string strItem = preparePath(strSelectedItem, false);
 
-  HistoryMap::iterator iter = m_vecHistory.find(strDir);
-  if (iter != m_vecHistory.end())
-  {
-    iter->second.m_strItem = strItem;
-    iter->second.m_indexItem = indexItem;
-    return;
-  }
-
-  CHistoryItem item;
-  item.m_strItem = strItem;
-  item.m_strDirectory = strDir;
-  item.m_indexItem = indexItem;
-  m_vecHistory[strDir] = item;
+  m_vecHistory.insert_or_assign(strDir, CHistoryItem(strItem, indexItem));
 }
 
-const CDirectoryHistory::CHistorySelectedItem CDirectoryHistory::GetSelectedItem(
+const CDirectoryHistory::CHistoryItem* CDirectoryHistory::GetSelectedItem(
     const std::string& strDirectory) const
 {
   HistoryMap::const_iterator iter = m_vecHistory.find(preparePath(strDirectory));
   if (iter != m_vecHistory.end())
-    return CDirectoryHistory::CHistorySelectedItem(iter->second.m_strItem,
-                                                   iter->second.m_indexItem);
+    return &iter->second;
 
-  return CDirectoryHistory::CHistorySelectedItem();
+  return nullptr;
 }
 
 void CDirectoryHistory::AddPath(const std::string& strPath, const std::string &strFilterPath /* = "" */)
