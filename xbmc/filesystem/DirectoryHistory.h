@@ -25,7 +25,6 @@ public:
 
   private:
     std::string m_strItem;
-    std::string m_strDirectory;
     int m_indexItem{-1};
   };
 
