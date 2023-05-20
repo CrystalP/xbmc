@@ -1318,37 +1318,34 @@ void CGUIMediaWindow::RestoreSelectedItemFromHistory()
   const CDirectoryHistory::CHistoryItem* selectedItem =
       m_history.GetSelectedItem(m_vecItems->GetPath());
 
-  if (!selectedItem)
+  if (selectedItem)
   {
-    m_viewControl.SetSelectedItem(0);
-    return;
-  }
-
-  std::string_view strSelectedItem = selectedItem->GetStrItem();
-  if (!strSelectedItem.empty())
-  {
-    for (int i = 0; i < m_vecItems->Size(); ++i)
+    std::string_view strSelectedItem = selectedItem->GetStrItem();
+    if (!strSelectedItem.empty())
     {
-      CFileItemPtr pItem = m_vecItems->Get(i);
-      std::string strHistory;
-      GetDirectoryHistoryString(pItem.get(), strHistory);
-      // set selected item if equals with history
-      if (strHistory == strSelectedItem)
+      for (int i = 0; i < m_vecItems->Size(); ++i)
       {
-        m_viewControl.SetSelectedItem(i);
-        return;
+        CFileItemPtr pItem = m_vecItems->Get(i);
+        std::string strHistory;
+        GetDirectoryHistoryString(pItem.get(), strHistory);
+        // set selected item if equals with history
+        if (strHistory == strSelectedItem)
+        {
+          m_viewControl.SetSelectedItem(i);
+          return;
+        }
       }
     }
-  }
 
-  // Exact item not found - maybe deleted, watched status change, filtered out, ...
-  // Attempt to restore the position of the selection
-  if (selectedItem->GetIndexItem() >= 0 && m_vecItems->Size() > 0)
-  {
-    int newIndex = std::min(selectedItem->GetIndexItem(), m_vecItems->Size() - 1);
+    // Exact item not found - maybe deleted, watched status change, filtered out, ...
+    // Attempt to restore the position of the selection
+    if (selectedItem->GetIndexItem() >= 0 && m_vecItems->Size() > 0)
+    {
+      int newIndex = std::min(selectedItem->GetIndexItem(), m_vecItems->Size() - 1);
 
-    m_viewControl.SetSelectedItem(newIndex);
-    return;
+      m_viewControl.SetSelectedItem(newIndex);
+      return;
+    }
   }
   // Fallback: select the first item
   m_viewControl.SetSelectedItem(0);
