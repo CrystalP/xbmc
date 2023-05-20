@@ -1315,7 +1315,8 @@ void CGUIMediaWindow::SaveSelectedItemInHistory()
 
 void CGUIMediaWindow::RestoreSelectedItemFromHistory()
 {
-  const CDirectoryHistory::CHistorySelectedItem histItem = m_history.GetSelectedItem(m_vecItems->GetPath());
+  const CDirectoryHistory::CHistorySelectedItem histItem =
+      m_history.GetSelectedItem(m_vecItems->GetPath());
 
   if (!histItem.GetStrItem().empty())
   {
