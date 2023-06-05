@@ -138,7 +138,7 @@ float4 output4(float4 color, float2 uv)
 #if defined(KODI_HLG_TO_PQ)
   color.rgb = inverseHLG(color.rgb);
   float3 ootf_2020 = float3(0.2627f, 0.6780f, 0.0593f);
-  float ootf_ys = 2000.0f * dot(ootf_2020, color.rgb);
+  float ootf_ys = 1000.0f * dot(ootf_2020, color.rgb);
   color.rgb *= pow(ootf_ys, 0.2f);
   color.rgb = tranferPQ(color.rgb);
 #endif
