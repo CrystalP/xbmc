@@ -32,7 +32,6 @@
 #include <mutex>
 
 #include <Windows.h>
-#include <d3d11_4.h>
 #include <dxva.h>
 #include <initguid.h>
 #include <sdkddkver.h>
@@ -783,6 +782,12 @@ void DXVA::CVideoBuffer::Unref()
   av_frame_unref(m_pFrame);
 }
 
+CVideoBufferShared::~CVideoBufferShared()
+{
+  if (m_readyEvent != INVALID_HANDLE_VALUE)
+    CloseHandle(m_readyEvent);
+}
+
 HRESULT CVideoBufferShared::GetResource(ID3D11Resource** ppResource)
 {
   HRESULT hr = S_OK;
@@ -799,6 +804,9 @@ HRESULT CVideoBufferShared::GetResource(ID3D11Resource** ppResource)
   if (SUCCEEDED(hr))
     hr = m_sharedRes.CopyTo(ppResource);
 
+  if (m_readyEvent != INVALID_HANDLE_VALUE)
+    WaitForSingleObject(m_readyEvent, INFINITE);
+
   return hr;
 }
 
@@ -807,7 +815,94 @@ void CVideoBufferShared::Initialize(CDecoder* decoder)
   CVideoBuffer::Initialize(decoder);
 
   if (handle == INVALID_HANDLE_VALUE)
+  {
     handle = decoder->m_sharedHandle;
+    InitializeFence(decoder);
+  }
+  // Set the fence to wait until this picture is ready
+  SetFence();
+}
+
+void CVideoBufferShared::InitializeFence(CDecoder* decoder)
+{
+  if (!decoder)
+  {
+    CLog::LogF(LOGERROR, "NULL decoder");
+    return;
+  }
+
+  DXGI_ADAPTER_DESC ad{};
+  DX::DeviceResources::Get()->GetAdapterDesc(&ad);
+  if (ad.VendorId != PCIV_AMD)
+    return;
+
+  CLog::LogF(LOGDEBUG, "activating fence sync for AMD.");
+
+  ComPtr<ID3D11Device> device;
+  decoder->m_pD3D11Context->GetDevice(&device);
+  ComPtr<ID3D11DeviceContext> immediateContext;
+  device->GetImmediateContext(&immediateContext);
+  ComPtr<ID3D11Device5> d3ddev5;
+
+  HRESULT hr;
+  if (FAILED(hr = immediateContext.As(&m_deviceContext4)))
+  {
+    CLog::LogF(LOGDEBUG, "ID3D11DeviceContext4 is not available, error description: {}",
+               DX::GetErrorDescription(hr));
+    goto error;
+  }
+
+  if (FAILED(hr = device.As(&d3ddev5)))
+  {
+    CLog::LogF(LOGDEBUG, "ID3D11Device5 is not available, error description: {}",
+               DX::GetErrorDescription(hr));
+    goto error;
+  }
+
+  if (FAILED(hr = d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
+  {
+    CLog::LogF(LOGDEBUG, "unable to create ID3D11Fence, error description: {}",
+               DX::GetErrorDescription(hr));
+    goto error;
+  }
+
+  m_readyEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  if (m_readyEvent == NULL)
+  {
+    hr = GetLastError();
+    CLog::LogF(LOGERROR, "unable to create event, error description: {}",
+               DX::GetErrorDescription(hr));
+    m_readyEvent = INVALID_HANDLE_VALUE;
+    goto error;
+  }
+
+  CLog::LogF(LOGINFO, "fence synchronization activated.");
+
+  return;
+
+error:
+  CLog::LogF(LOGWARNING, "the dxva decoder will run without fence sync. with the main device.");
+
+  if (m_readyEvent != INVALID_HANDLE_VALUE)
+    CloseHandle(m_readyEvent);
+
+  m_readyEvent = NULL;
+  m_deviceContext4 = nullptr;
+  m_fence = nullptr;
+}
+
+void CVideoBufferShared::SetFence()
+{
+  if (m_fence && m_readyEvent != INVALID_HANDLE_VALUE)
+  {
+    static UINT64 fenceValue = 0;
+    // Not called from multiple threads, no synchronization needed to increment
+    fenceValue++;
+
+    ResetEvent(m_readyEvent);
+    m_fence->SetEventOnCompletion(fenceValue, m_readyEvent);
+    m_deviceContext4->Signal(m_fence.Get(), fenceValue);
+  }
 }
 
 void CVideoBufferCopy::Initialize(CDecoder* decoder)
