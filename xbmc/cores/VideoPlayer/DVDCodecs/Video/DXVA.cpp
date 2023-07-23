@@ -784,8 +784,8 @@ void DXVA::CVideoBuffer::Unref()
 
 CVideoBufferShared::~CVideoBufferShared()
 {
-  if (m_readyEvent != INVALID_HANDLE_VALUE)
-    CloseHandle(m_readyEvent);
+  if (m_handleFence != INVALID_HANDLE_VALUE)
+    CloseHandle(m_handleFence);
 }
 
 HRESULT CVideoBufferShared::GetResource(ID3D11Resource** ppResource)
@@ -804,8 +804,42 @@ HRESULT CVideoBufferShared::GetResource(ID3D11Resource** ppResource)
   if (SUCCEEDED(hr))
     hr = m_sharedRes.CopyTo(ppResource);
 
-  if (m_readyEvent != INVALID_HANDLE_VALUE)
-    WaitForSingleObject(m_readyEvent, INFINITE);
+  // Failures in the synchronization code are not blocking problems, log but return success
+  if (!m_sharedFence && m_handleFence != INVALID_HANDLE_VALUE)
+  {
+    HRESULT hr2;
+    // open the fence on app device
+    ComPtr<ID3D11Device> pD3DDevice = DX::DeviceResources::Get()->GetD3DDevice();
+    ComPtr<ID3D11Device5> device5;
+    if (FAILED(hr2 = pD3DDevice.As(&device5)))
+    {
+      CLog::LogF(LOGDEBUG, "ID3D11Device5 is not available, error description: {}",
+                 DX::GetErrorDescription(hr2));
+    }
+    else if (FAILED(hr2 = device5->OpenSharedFence(m_handleFence, IID_PPV_ARGS(&m_sharedFence))))
+    {
+      CLog::LogF(LOGDEBUG, "unable to open the shared fence, error description: {}",
+                 DX::GetErrorDescription(hr2));
+    }
+  }
+
+  if (m_sharedFence)
+  {
+    // Make the GPU wait for the fence value that produced the picture
+    ComPtr<ID3D11DeviceContext1> context1 = DX::DeviceResources::Get()->GetImmediateContext();
+    ComPtr<ID3D11DeviceContext4> context4;
+    HRESULT hr2;
+    if (FAILED(hr2 = context1.As(&context4)))
+    {
+      CLog::LogF(LOGDEBUG, "ID3D11DeviceContext4 is not available, error description: {}",
+                 DX::GetErrorDescription(hr2));
+    }
+    else if (FAILED(hr2 = context4->Wait(m_sharedFence.Get(), m_fenceValue)))
+    {
+      CLog::LogF(LOGDEBUG, "error waiting for the fence value, error description: {}",
+                 DX::GetErrorDescription(hr2));
+    }
+  }
 
   return hr;
 }
@@ -859,20 +893,17 @@ void CVideoBufferShared::InitializeFence(CDecoder* decoder)
     goto error;
   }
 
-  if (FAILED(hr = d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence))))
+  if (FAILED(hr = d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_SHARED, IID_PPV_ARGS(&m_fence))))
   {
     CLog::LogF(LOGDEBUG, "unable to create ID3D11Fence, error description: {}",
                DX::GetErrorDescription(hr));
     goto error;
   }
 
-  m_readyEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-  if (m_readyEvent == NULL)
+  if (FAILED(hr = m_fence->CreateSharedHandle(NULL, GENERIC_ALL, NULL, &m_handleFence)))
   {
-    hr = GetLastError();
-    CLog::LogF(LOGERROR, "unable to create event, error description: {}",
+    CLog::LogF(LOGDEBUG, "unable to create the shared handle of the fence, error description: {}",
                DX::GetErrorDescription(hr));
-    m_readyEvent = INVALID_HANDLE_VALUE;
     goto error;
   }
 
@@ -883,25 +914,22 @@ void CVideoBufferShared::InitializeFence(CDecoder* decoder)
 error:
   CLog::LogF(LOGWARNING, "the dxva decoder will run without fence sync. with the main device.");
 
-  if (m_readyEvent != INVALID_HANDLE_VALUE)
-    CloseHandle(m_readyEvent);
-
-  m_readyEvent = NULL;
   m_deviceContext4 = nullptr;
   m_fence = nullptr;
+  m_handleFence = INVALID_HANDLE_VALUE;
 }
 
 void CVideoBufferShared::SetFence()
 {
-  if (m_fence && m_readyEvent != INVALID_HANDLE_VALUE)
+  if (m_fence)
   {
     static UINT64 fenceValue = 0;
     // Not called from multiple threads, no synchronization needed to increment
     fenceValue++;
 
-    ResetEvent(m_readyEvent);
-    m_fence->SetEventOnCompletion(fenceValue, m_readyEvent);
-    m_deviceContext4->Signal(m_fence.Get(), fenceValue);
+    m_fenceValue = fenceValue;
+
+    m_deviceContext4->Signal(m_fence.Get(), m_fenceValue);
   }
 }
 
