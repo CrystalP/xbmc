@@ -865,12 +865,7 @@ void CVideoBufferShared::InitializeFence(CDecoder* decoder)
     return;
   }
 
-  DXGI_ADAPTER_DESC ad{};
-  DX::DeviceResources::Get()->GetAdapterDesc(&ad);
-  if (ad.VendorId != PCIV_AMD)
-    return;
-
-  CLog::LogF(LOGDEBUG, "activating fence sync for AMD.");
+  CLog::LogF(LOGDEBUG, "activating fence synchronization.");
 
   ComPtr<ID3D11Device> device;
   decoder->m_pD3D11Context->GetDevice(&device);
