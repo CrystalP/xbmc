@@ -71,11 +71,14 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
   int NrVBlanks;
   double VBlankTime;
   const int64_t systemFrequency = CurrentHostFrequency();
+  Microsoft::WRL::ComPtr<IDXGIFactory2> factory;
+  
+  CreateDXGIFactory1(IID_PPV_ARGS(factory.ReleaseAndGetAddressOf()));
 
   // init the vblanktime
   Now = CurrentHostCounter();
   LastVBlankTime = Now;
-  m_lastUpdateTime = Now - systemFrequency;
+
   while (!stopEvent.Signaled() && !m_displayLost && !m_displayReset)
   {
     // sleep until vblank
@@ -96,11 +99,13 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
     // save the timestamp of this vblank so we can calculate how many vblanks happened next time
     LastVBlankTime = Now;
 
-    if ((Now - m_lastUpdateTime) >= systemFrequency)
+    if (!factory->IsCurrent())
     {
       float fps = m_fps;
       if (fps != GetFps())
         break;
+
+      CreateDXGIFactory1(IID_PPV_ARGS(factory.ReleaseAndGetAddressOf()));
     }
 
     // Some of the code above can take a non-negligible amount of time

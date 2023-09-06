@@ -19,7 +19,7 @@ class CVideoSyncD3D : public CVideoSync, IDispResource
 {
 public:
   CVideoSyncD3D(CVideoReferenceClock* clock)
-    : CVideoSync(clock), m_displayLost(false), m_displayReset(false), m_lastUpdateTime(0)
+    : CVideoSync(clock), m_displayLost(false), m_displayReset(false)
   {
   }
   bool Setup() override;
@@ -35,7 +35,6 @@ private:
   volatile bool m_displayLost;
   volatile bool m_displayReset;
   CEvent m_lostEvent;
-  int64_t m_lastUpdateTime;
   Microsoft::WRL::ComPtr<IDXGIOutput> m_output;
   DXGI_OUTPUT_DESC m_outputDesc{};
 };
