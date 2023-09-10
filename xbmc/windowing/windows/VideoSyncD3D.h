@@ -11,6 +11,7 @@
 #include "guilib/DispResource.h"
 #include "threads/Event.h"
 #include "windowing/VideoSync.h"
+#include <dxgi1_5.h>
 
 #include <dxgi1_5.h>
 
@@ -36,5 +37,6 @@ private:
   CEvent m_lostEvent;
   int64_t m_lastUpdateTime;
   Microsoft::WRL::ComPtr<IDXGIOutput> m_output;
+  DXGI_OUTPUT_DESC m_outputDesc{};
 };
 

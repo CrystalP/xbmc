@@ -1,0 +1,116 @@
+[1mdiff --git a/xbmc/windowing/windows/VideoSyncD3D.cpp b/xbmc/windowing/windows/VideoSyncD3D.cpp[m
+[1mindex 564df55fdd..7986b4a337 100644[m
+[1m--- a/xbmc/windowing/windows/VideoSyncD3D.cpp[m
+[1m+++ b/xbmc/windowing/windows/VideoSyncD3D.cpp[m
+[36m@@ -36,11 +36,6 @@[m [mvoid CVideoSyncD3D::OnResetDisplay()[m
+   m_displayReset = true;[m
+ }[m
+ [m
+[31m-void CVideoSyncD3D::RefreshChanged()[m
+[31m-{[m
+[31m-  m_displayReset = true;[m
+[31m-}[m
+[31m-[m
+ bool CVideoSyncD3D::Setup()[m
+ {[m
+   CLog::Log(LOGDEBUG, "CVideoSyncD3D: Setting up Direct3d");[m
+[36m@@ -63,18 +58,45 @@[m [mvoid CVideoSyncD3D::Run(CEvent& stopEvent)[m
+   int64_t LastVBlankTime;[m
+   int NrVBlanks;[m
+   double VBlankTime;[m
+[31m-  int64_t systemFrequency = CurrentHostFrequency();[m
+[32m+[m[32m  const int64_t systemFrequency = CurrentHostFrequency();[m
+[32m+[m[32m  Microsoft::WRL::ComPtr<IDXGIFactory2> factory;[m
+[32m+[m[32m  bool validVBlank{true};[m
+[32m+[m
+[32m+[m[32m  CreateDXGIFactory1(IID_PPV_ARGS(factory.ReleaseAndGetAddressOf()));[m
+ [m
+   // init the vblanktime[m
+   Now = CurrentHostCounter();[m
+   LastVBlankTime = Now;[m
+[31m-  m_lastUpdateTime = Now - systemFrequency;[m
+[32m+[m
+   while (!stopEvent.Signaled() && !m_displayLost && !m_displayReset)[m
+   {[m
+     // sleep until vblank[m
+     Microsoft::WRL::ComPtr<IDXGIOutput> pOutput;[m
+     DX::DeviceResources::Get()->GetOutput(&pOutput);[m
+[31m-    pOutput->WaitForVBlank();[m
+[32m+[m
+[32m+[m[32m    const int64_t WaitForVBlankStartTime = CurrentHostCounter();[m
+[32m+[m[32m    const HRESULT hr = pOutput->WaitForVBlank();[m
+[32m+[m[32m    const int64_t WaitForVBlankElapsedTime = CurrentHostCounter() - WaitForVBlankStartTime;[m
+[32m+[m
+[32m+[m[32m    // Wait error or returned very quickly, possibly because of screen sleeping[m
+[32m+[m[32m    if (!SUCCEEDED(hr) || WaitForVBlankElapsedTime - (systemFrequency / 1000) <= 0)[m
+[32m+[m[32m    {[m
+[32m+[m[32m      if (validVBlank)[m
+[32m+[m[32m        CLog::LogF(LOGWARNING, "failed to detect vblank - screen asleep?");[m
+[32m+[m
+[32m+[m[32m      validVBlank = false;[m
+[32m+[m
+[32m+[m[32m      // Wait until vblank can be detected again. No need for high-precision sleep.[m
+[32m+[m[32m      ::Sleep(500);[m
+[32m+[m[32m      continue;[m
+[32m+[m[32m    }[m
+[32m+[m[32m    else[m
+[32m+[m[32m    {[m
+[32m+[m[32m      if (!validVBlank)[m
+[32m+[m[32m        CLog::LogF(LOGWARNING, "vblank detected");[m
+[32m+[m
+[32m+[m[32m      validVBlank = true;[m
+[32m+[m[32m    }[m
+ [m
+     // calculate how many vblanks happened[m
+     Now = CurrentHostCounter();[m
+[36m@@ -87,20 +109,14 @@[m [mvoid CVideoSyncD3D::Run(CEvent& stopEvent)[m
+     // save the timestamp of this vblank so we can calculate how many vblanks happened next time[m
+     LastVBlankTime = Now;[m
+ [m
+[31m-    if ((Now - m_lastUpdateTime) >= systemFrequency)[m
+[32m+[m[32m    if (!factory->IsCurrent())[m
+     {[m
+       float fps = m_fps;[m
+       if (fps != GetFps())[m
+         break;[m
+[31m-    }[m
+ [m
+[31m-    // because we had a vblank, sleep until half the refreshrate period because i think WaitForVBlank block any rendering stuf[m
+[31m-    // without sleeping we have freeze rendering[m
+[31m-    int SleepTime = (int)((LastVBlankTime + (systemFrequency / MathUtils::round_int(m_fps) / 2) - Now) * 1000 / systemFrequency);[m
+[31m-    if (SleepTime > 50)[m
+[31m-      SleepTime = 50; //failsafe[m
+[31m-    if (SleepTime > 0)[m
+[31m-      ::Sleep(SleepTime);[m
+[32m+[m[32m      CreateDXGIFactory1(IID_PPV_ARGS(factory.ReleaseAndGetAddressOf()));[m
+[32m+[m[32m    }[m
+   }[m
+ [m
+   m_lostEvent.Set();[m
+[1mdiff --git a/xbmc/windowing/windows/VideoSyncD3D.h b/xbmc/windowing/windows/VideoSyncD3D.h[m
+[1mindex 8c706dd88d..2218a5c43d 100644[m
+[1m--- a/xbmc/windowing/windows/VideoSyncD3D.h[m
+[1m+++ b/xbmc/windowing/windows/VideoSyncD3D.h[m
+[36m@@ -16,14 +16,13 @@[m [mclass CVideoSyncD3D : public CVideoSync, IDispResource[m
+ {[m
+ public:[m
+   CVideoSyncD3D(CVideoReferenceClock* clock)[m
+[31m-    : CVideoSync(clock), m_displayLost(false), m_displayReset(false), m_lastUpdateTime(0)[m
+[32m+[m[32m    : CVideoSync(clock), m_displayLost(false), m_displayReset(false)[m
+   {[m
+   }[m
+   bool Setup() override;[m
+   void Run(CEvent& stopEvent) override;[m
+   void Cleanup() override;[m
+   float GetFps() override;[m
+[31m-  void RefreshChanged() override;[m
+   // IDispResource overrides[m
+   void OnLostDisplay() override;[m
+   void OnResetDisplay() override;[m
+[36m@@ -32,6 +31,5 @@[m [mprivate:[m
+   volatile bool m_displayLost;[m
+   volatile bool m_displayReset;[m
+   CEvent m_lostEvent;[m
+[31m-  int64_t m_lastUpdateTime;[m
+ };[m
+ [m
