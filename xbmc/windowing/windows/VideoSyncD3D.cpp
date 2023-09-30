@@ -54,6 +54,8 @@ bool CVideoSyncD3D::Setup()
   if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL))
     CLog::Log(LOGDEBUG, "CVideoSyncD3D: SetThreadPriority failed");
 
+  DX::DeviceResources::Get()->GetOutput(m_output.ReleaseAndGetAddressOf());
+
   return true;
 }
 
@@ -72,9 +74,9 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
   while (!stopEvent.Signaled() && !m_displayLost && !m_displayReset)
   {
     // sleep until vblank
-    Microsoft::WRL::ComPtr<IDXGIOutput> pOutput;
-    DX::DeviceResources::Get()->GetOutput(&pOutput);
-    pOutput->WaitForVBlank();
+    m_output->WaitForVBlank();
+
+    DX::DeviceResources::Get()->GetOutput(m_output.ReleaseAndGetAddressOf());
 
     // calculate how many vblanks happened
     Now = CurrentHostCounter();
@@ -94,6 +96,8 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
         break;
     }
 
+    Now = CurrentHostCounter();
+
     // because we had a vblank, sleep until half the refreshrate period because i think WaitForVBlank block any rendering stuf
     // without sleeping we have freeze rendering
     int SleepTime = (int)((LastVBlankTime + (systemFrequency / MathUtils::round_int(m_fps) / 2) - Now) * 1000 / systemFrequency);
@@ -103,6 +107,7 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
       ::Sleep(SleepTime);
   }
 
+  m_output.Reset();
   m_lostEvent.Set();
   while (!stopEvent.Signaled() && m_displayLost && !m_displayReset)
   {
