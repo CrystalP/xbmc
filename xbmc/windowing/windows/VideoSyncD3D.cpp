@@ -96,6 +96,7 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
         break;
     }
 
+    // Some of the code above can take a non-negligible amount of time
     Now = CurrentHostCounter();
 
     // because we had a vblank, sleep until half the refreshrate period because i think WaitForVBlank block any rendering stuf
