@@ -224,33 +224,38 @@ void COutputShader::ApplyEffectParameters(CD3DEffect &effect, unsigned sourceWid
 
 float COutputShader::GetLuminanceValue() const
 {
-  float lum1 = 400.0f; // default for bad quality HDR-PQ sources (with no metadata)
-  float lum2 = lum1;
-  float lum3 = lum1;
+  // default for bad quality HDR-PQ sources (missing or invalid metadata)
+  float masteringDisplayMaxLuminance = 400.0f;
+
+  if (m_hasDisplayMetadata && m_displayMetadata.has_luminance &&
+      m_displayMetadata.max_luminance.den)
+  {
+    const uint16_t lum = m_displayMetadata.max_luminance.num / m_displayMetadata.max_luminance.den;
+    
+    if (lum > 0)
+      masteringDisplayMaxLuminance = static_cast<float>(lum);
+  }
 
   if (m_hasLightMetadata)
   {
-    uint16_t lum = m_displayMetadata.max_luminance.num / m_displayMetadata.max_luminance.den;
-    if (m_lightMetadata.MaxCLL >= lum)
+    float lum1, lum2;
+
+    if (m_lightMetadata.MaxCLL >= masteringDisplayMaxLuminance)
     {
-      lum1 = static_cast<float>(lum);
+      lum1 = masteringDisplayMaxLuminance;
       lum2 = static_cast<float>(m_lightMetadata.MaxCLL);
     }
     else
     {
       lum1 = static_cast<float>(m_lightMetadata.MaxCLL);
-      lum2 = static_cast<float>(lum);
+      lum2 = masteringDisplayMaxLuminance;
     }
-    lum3 = static_cast<float>(m_lightMetadata.MaxFALL);
-    lum1 = (lum1 * 0.5f) + (lum2 * 0.2f) + (lum3 * 0.3f);
-  }
-  else if (m_hasDisplayMetadata && m_displayMetadata.has_luminance)
-  {
-    uint16_t lum = m_displayMetadata.max_luminance.num / m_displayMetadata.max_luminance.den;
-    lum1 = static_cast<float>(lum);
+    const float lum3 = static_cast<float>(m_lightMetadata.MaxFALL);
+
+    return (lum1 * 0.5f) + (lum2 * 0.2f) + (lum3 * 0.3f);
   }
 
-  return lum1;
+  return masteringDisplayMaxLuminance;
 }
 
 void COutputShader::GetDefines(DefinesMap& map) const

@@ -213,13 +213,18 @@ void BaseYUV2RGBGLSLShader::SetDisplayMetadata(bool hasDisplayMetadata,
 
 float BaseYUV2RGBGLSLShader::GetLuminanceValue() const
 {
-  float lum1 = 400.0f; // default for bad quality HDR-PQ sources (with no metadata)
-  float lum2 = lum1;
-  float lum3 = lum1;
+  const float defaultLuminance = 400.0f; // default for bad quality HDR-PQ sources (with no metadata)
+  float lum1 = defaultLuminance;
+  float lum2 = defaultLuminance;
+  float lum3 = defaultLuminance;
 
   if (m_hasLightMetadata)
   {
     uint16_t lum = m_displayMetadata.max_luminance.num / m_displayMetadata.max_luminance.den;
+
+    if (!lum) // bad metadata
+      lum = static_cast<uint16_t>(defaultLuminance);
+
     if (m_lightMetadata.MaxCLL >= lum)
     {
       lum1 = static_cast<float>(lum);
@@ -237,6 +242,10 @@ float BaseYUV2RGBGLSLShader::GetLuminanceValue() const
            m_displayMetadata.max_luminance.num > 0)
   {
     uint16_t lum = m_displayMetadata.max_luminance.num / m_displayMetadata.max_luminance.den;
+
+    if (!lum) // bad metadata
+      static_cast<uint16_t>(defaultLuminance);
+
     lum1 = static_cast<float>(lum);
   }
 
