@@ -28,11 +28,18 @@ float4x4   g_primMat;
 float      g_gammaDstInv;
 float      g_gammaSrc;
 
-SamplerState YUVSampler : IMMUTABLE
+SamplerState PointSampler : IMMUTABLE
 {
-  AddressU = CLAMP;
-  AddressV = CLAMP;
-  Filter   = MIN_MAG_MIP_LINEAR;
+    AddressU = CLAMP;
+    AddressV = CLAMP;
+    Filter = MIN_MAG_MIP_POINT;
+};
+
+SamplerState LinearSampler : IMMUTABLE
+{
+    AddressU = CLAMP;
+    AddressV = CLAMP;
+    Filter = MIN_MAG_MIP_LINEAR;
 };
 
 struct VS_INPUT
@@ -78,16 +85,16 @@ inline float2 unormUV(float2 rg)
 float4 YUV2RGB(VS_OUTPUT In) : SV_TARGET
 {
 #if defined(XBMC_YV12) //|| defined(XBMC_NV12)
-  float4 YUV = float4(g_Texture[0].Sample(YUVSampler, In.TextureY ).r
-                    , g_Texture[1].Sample(YUVSampler, In.TextureUV).r
-                    , g_Texture[2].Sample(YUVSampler, In.TextureUV).r
+  float4 YUV = float4(g_Texture[0].Sample(PointSampler, In.TextureY ).r
+                    , g_Texture[1].Sample(LinearSampler, In.TextureUV).r
+                    , g_Texture[2].Sample(LinearSampler, In.TextureUV).r
                     , 1.0);
 #elif defined(XBMC_NV12)
-  float4 YUV = float4(g_Texture[0].Sample(YUVSampler, In.TextureY).r
+  float4 YUV = float4(g_Texture[0].Sample(PointSampler, In.TextureY).r
   #if defined(NV12_SNORM_UV)
-                    , unormUV(g_Texture[1].Sample(YUVSampler, In.TextureUV).rg)
+                    , unormUV(g_Texture[1].Sample(LinearSampler, In.TextureUV).rg)
   #else
-                    , g_Texture[1].Sample(YUVSampler, In.TextureUV).rg
+                    , g_Texture[1].Sample(LinearSampler, In.TextureUV).rg
   #endif
                     , 1.0);
 #elif defined(XBMC_YUY2) || defined(XBMC_UYVY)
@@ -100,8 +107,8 @@ float4 YUV2RGB(VS_OUTPUT In) : SV_TARGET
 
   //y axis will be correctly interpolated by opengl
   //x axis will not, so we grab two pixels at the center of two columns and interpolate ourselves
-  float4 c1 = g_Texture[0].Sample(YUVSampler, float2(pos.x + ((0.5 - f.x) * stepxy.x), pos.y));
-  float4 c2 = g_Texture[0].Sample(YUVSampler, float2(pos.x + ((1.5 - f.x) * stepxy.x), pos.y));
+  float4 c1 = g_Texture[0].Sample(PointSampler, float2(pos.x + ((0.5 - f.x) * stepxy.x), pos.y));
+  float4 c2 = g_Texture[0].Sample(PointSampler, float2(pos.x + ((1.5 - f.x) * stepxy.x), pos.y));
 
   /* each pixel has two Y subpixels and one UV subpixel
       YUV  Y  YUV
