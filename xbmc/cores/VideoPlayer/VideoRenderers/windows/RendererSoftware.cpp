@@ -46,6 +46,12 @@ CRendererSoftware::CRendererSoftware(CVideoSettings& videoSettings) : CRendererB
 
 CRendererSoftware::~CRendererSoftware()
 {
+  if (m_srcFilter)
+  {
+    sws_freeFilter(m_srcFilter);
+    m_srcFilter = nullptr;
+  }
+
   if (m_sw_scale_ctx)
   {
     sws_freeContext(m_sw_scale_ctx);
@@ -90,10 +96,25 @@ void CRendererSoftware::RenderImpl(CD3DTexture& target, CRect& sourceRect, CPoin
   const AVPixelFormat dstFormat =
       (target.GetFormat() == DXGI_FORMAT_R10G10B10A2_UNORM) ? AV_PIX_FMT_X2BGR10 : AV_PIX_FMT_BGRA;
 
+  // Hack to make swscale use its fully-featured scaling algorithms.
+  // ff_get_unscaled_swscale() uses nearest neighbor for chroma and is used when source size = dest size
+  // and all filter lengths are 1.
+  // To avoid it, set an identity filter of length > 1
+  if (!m_srcFilter)
+    m_srcFilter = sws_getDefaultFilter(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0);
+
+  sws_freeVec(m_srcFilter->lumH);
+  SwsVector* vec = sws_allocVec(3);
+  vec->coeff[0] = 0.0;
+  vec->coeff[1] = 1.0;
+  vec->coeff[2] = 0.0;
+  m_srcFilter->lumH = vec;
+
   // 1. convert yuv to rgb
-  m_sw_scale_ctx = sws_getCachedContext(m_sw_scale_ctx, buf->GetWidth(), buf->GetHeight(),
-                                        buf->av_format, buf->GetWidth(), buf->GetHeight(),
-                                        dstFormat, SWS_FAST_BILINEAR, nullptr, nullptr, nullptr);
+  m_sw_scale_ctx = sws_getCachedContext(
+      m_sw_scale_ctx, buf->GetWidth(), buf->GetHeight(), buf->av_format, buf->GetWidth(),
+      buf->GetHeight(), dstFormat, SWS_BILINEAR | SWS_FULL_CHR_H_INT | SWS_PRINT_INFO, m_srcFilter,
+      nullptr, nullptr);
 
   if (!m_sw_scale_ctx)
     return;
