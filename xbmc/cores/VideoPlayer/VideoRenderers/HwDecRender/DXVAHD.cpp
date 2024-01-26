@@ -418,8 +418,8 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
   const bool frameProgressive = dxvaFrameFormat == D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
 
   // Progressive or Interlaced video at normal rate.
-  const bool secondField = ((flags & RENDER_FLAG_FIELD1) && !frameProgressive) ? 1 : 0;
-  stream_data.InputFrameOrField = frameIdx + (secondField ? 1 : 0);
+  const bool secondField = (flags & RENDER_FLAG_FIELD1) && !frameProgressive ? 1 : 0;
+  stream_data.InputFrameOrField = frameIdx;
   stream_data.OutputIndex = secondField;
 
   // Render() gets called once for each displayed frame, following the pattern necessary to adapt
@@ -505,11 +505,11 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
                                                                  {0}};
   ComPtr<ID3D11VideoProcessorOutputView> pOutputView =
       m_enumerator->CreateVideoProcessorOutputView(target, &outputViewDesc);
-
+  
   HRESULT hr{};
   if (pOutputView)
   {
-    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(), 0, 1,
+    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(), frameIdx, 1,
                                             &stream_data);
     if (S_OK != hr)
     {
