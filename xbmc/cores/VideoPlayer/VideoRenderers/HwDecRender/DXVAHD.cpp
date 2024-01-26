@@ -509,8 +509,8 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
   HRESULT hr{};
   if (pOutputView)
   {
-    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(), 0, 1,
-                                            &stream_data);
+    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(),
+                                            frameIdx + (secondField ? 1 : 0), 1, &stream_data);
     if (S_OK != hr)
     {
       CLog::LogF(FAILED(hr) ? LOGERROR : LOGWARNING,
