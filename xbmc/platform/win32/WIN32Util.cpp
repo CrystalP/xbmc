@@ -1421,6 +1421,43 @@ HDR_STATUS CWIN32Util::GetWindowsHDRStatus()
 
             if (ERROR_SUCCESS == DisplayConfigGetDeviceInfo(&getColorInfo.header))
             {
+              CLog::LogF(LOGDEBUG,
+                         "DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO: value {} adv color supported {}  "
+                         "adv color "
+                         "enabled {} wide color enforced {} adv color force disabled {}",
+                         (unsigned int)getColorInfo.value,
+                         (unsigned int)getColorInfo.advancedColorSupported,
+                         (unsigned int)getColorInfo.advancedColorEnabled,
+                         (unsigned int)getColorInfo.wideColorEnforced,
+                         (unsigned int)getColorInfo.advancedColorForceDisabled);
+
+              std::string enc;
+              switch (getColorInfo.colorEncoding)
+              {
+                case DISPLAYCONFIG_COLOR_ENCODING_RGB:
+                  enc = "rgb";
+                  break;
+                case DISPLAYCONFIG_COLOR_ENCODING_YCBCR444:
+                  enc = "ycbcr444";
+                  break;
+                case DISPLAYCONFIG_COLOR_ENCODING_YCBCR422:
+                  enc = "ycbcr422";
+                  break;
+                case DISPLAYCONFIG_COLOR_ENCODING_YCBCR420:
+                  enc = "ycbcr420";
+                  break;
+                case DISPLAYCONFIG_COLOR_ENCODING_INTENSITY:
+                  enc = "intensity";
+                  break;
+                default:
+                  enc = "unknown";
+              }
+
+              CLog::LogF(LOGDEBUG,
+                         "DISPLAYCONFIG_GET_ADVANCED_COLOR_INFO: color encoding {} bpc {} ", enc,
+                         getColorInfo.bitsPerColorChannel);
+
+
               if (getColorInfo.advancedColorEnabled)
                 advancedColorEnabled = true;
 

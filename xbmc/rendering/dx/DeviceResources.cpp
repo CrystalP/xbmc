@@ -24,6 +24,8 @@
 #include "platform/win32/CharsetConverter.h"
 #include "platform/win32/WIN32Util.h"
 
+#include <dxgi1_6.h>
+
 #ifdef TARGET_WINDOWS_STORE
 #include <winrt/Windows.Graphics.Display.Core.h>
 
@@ -766,13 +768,21 @@ void DX::DeviceResources::CreateWindowSizeDependentResources()
 
   DestroySwapChain();
 
+  bool recreatedfactory{false};
+
   if (!m_dxgiFactory->IsCurrent()) // HDR toggling requires re-create factory
+  {
     CreateFactory();
+    recreatedfactory = true;
+  }
 
   UpdateRenderTargetSize();
   ResizeBuffers();
 
   CreateBackBuffer();
+
+  if (recreatedfactory)
+    SetMonitor(GetMonitor());
 }
 
 // Determine the dimensions of the render target and whether it will be scaled down.
@@ -1068,6 +1078,25 @@ void DX::DeviceResources::HandleOutputChange(const std::function<bool(DXGI_OUTPU
       {
         output.As(&m_output);
         m_outputDesc = outputDesc;
+
+        ComPtr<IDXGIOutput6> output6;
+        output.As(&output6);
+        DXGI_OUTPUT_DESC1 outputDesc1{};
+        output6->GetDesc1(&outputDesc1);
+
+        CLog::LogF(LOGDEBUG, "DXGIOutputDesc1: name {} bpc {} colorspace {}",
+                   KODI::PLATFORM::WINDOWS::FromW(outputDesc1.DeviceName), outputDesc1.BitsPerColor,
+                   DX::DXGIColorSpaceTypeToString(outputDesc1.ColorSpace));
+        CLog::LogF(LOGDEBUG, "DXGIOutputDesc1: red {},{} green {},{} blue {},{} white point {},{}",
+                   outputDesc1.RedPrimary[0], outputDesc1.RedPrimary[1],
+                   outputDesc1.GreenPrimary[0], outputDesc1.GreenPrimary[1],
+                   outputDesc1.BluePrimary[0], outputDesc1.BluePrimary[1],
+                   outputDesc1.WhitePoint[0], outputDesc1.WhitePoint[1]);
+        CLog::LogF(LOGDEBUG,
+                   "DXGIOutputDesc1: min luminance {} max luminance {} max full frame luminance {}",
+                   outputDesc1.MinLuminance, outputDesc1.MaxLuminance,
+                   outputDesc1.MaxFullFrameLuminance);
+
         // check if adapter is changed
         if (currentDesc.AdapterLuid.HighPart != foundDesc.AdapterLuid.HighPart
           || currentDesc.AdapterLuid.LowPart != foundDesc.AdapterLuid.LowPart)
