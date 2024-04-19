@@ -3696,7 +3696,9 @@ void CVideoDatabase::DeleteBookMarkForEpisode(const CVideoInfoTag& tag)
 }
 
 //********************************************************************************************************************************
-void CVideoDatabase::DeleteMovie(int idMovie, DeleteMovieCascadeAction ca /* = ALL_ASSETS */)
+void CVideoDatabase::DeleteMovie(int idMovie,
+                                 DeleteMovieCascadeAction ca /* = ALL_ASSETS */,
+                                 DeleteMovieHashAction hashAction /* = HASH_DELETE */)
 {
   if (idMovie < 0)
     return;
@@ -3713,11 +3715,14 @@ void CVideoDatabase::DeleteMovie(int idMovie, DeleteMovieCascadeAction ca /* = A
     const int idFile{GetDbId(PrepareSQL("SELECT idFile FROM movie WHERE idMovie=%i", idMovie))};
     DeleteStreamDetails(idFile);
 
-    const std::string path = GetSingleValue(PrepareSQL(
-        "SELECT strPath FROM path JOIN files ON files.idPath=path.idPath WHERE files.idFile=%i",
-        idFile));
-    if (!path.empty())
-      InvalidatePathHash(path);
+    if (hashAction == DeleteMovieHashAction::HASH_DELETE)
+    {
+      const std::string path = GetSingleValue(PrepareSQL(
+          "SELECT strPath FROM path JOIN files ON files.idPath=path.idPath WHERE files.idFile=%i",
+          idFile));
+      if (!path.empty())
+        InvalidatePathHash(path);
+    }
 
     const std::string strSQL{PrepareSQL("DELETE FROM movie WHERE idMovie=%i", idMovie)};
     m_pDS->exec(strSQL);
@@ -12403,7 +12408,8 @@ bool CVideoDatabase::ConvertVideoToVersion(VideoDbContentType itemType,
     SetVideoVersionDefaultArt(idFile, dbIdSource, itemType);
 
     if (itemType == VideoDbContentType::MOVIES)
-      DeleteMovie(dbIdSource);
+      DeleteMovie(dbIdSource, DeleteMovieCascadeAction::ALL_ASSETS,
+                  DeleteMovieHashAction::HASH_PRESERVE);
   }
 
   // Rename the default version
