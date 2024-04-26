@@ -97,8 +97,7 @@ private:
       std::unique_ptr<void, handle_closer> mBufferEnd;
     };
 
-    bool InitializeInternal(std::string deviceId, AEAudioFormat &format);
-    bool IsUSBDevice();
+    bool InitializeInternal(std::string deviceId, AEAudioFormat& format);
 
     Microsoft::WRL::ComPtr<IXAudio2> m_xAudio2;
     IXAudio2MasteringVoice* m_masterVoice;
