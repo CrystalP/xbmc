@@ -230,11 +230,10 @@ unsigned int CAESinkXAudio::AddPackets(uint8_t **data, unsigned int frames, unsi
   HRESULT hr = S_OK;
   DWORD flags = 0;
 
-#ifndef _DEBUG
   LARGE_INTEGER timerStart;
   LARGE_INTEGER timerStop;
   LARGE_INTEGER timerFreq;
-#endif
+
   size_t dataLenght = frames * m_format.m_frameSize;
 
   struct buffer_ctx *ctx = new buffer_ctx;
@@ -272,11 +271,9 @@ unsigned int CAESinkXAudio::AddPackets(uint8_t **data, unsigned int frames, unsi
     return frames;
   }
 
-#ifndef _DEBUG
   /* Get clock time for latency checks */
   QueryPerformanceFrequency(&timerFreq);
   QueryPerformanceCounter(&timerStart);
-#endif
 
   /* Wait for Audio Driver to tell us it's got a buffer available */
   //XAUDIO2_VOICE_STATE state;
@@ -296,7 +293,6 @@ unsigned int CAESinkXAudio::AddPackets(uint8_t **data, unsigned int frames, unsi
   if (!m_running)
     return 0;
 
-#ifndef _DEBUG
   QueryPerformanceCounter(&timerStop);
   LONGLONG timerDiff = timerStop.QuadPart - timerStart.QuadPart;
   double timerElapsed = (double) timerDiff * 1000.0 / (double) timerFreq.QuadPart;
@@ -307,14 +303,11 @@ unsigned int CAESinkXAudio::AddPackets(uint8_t **data, unsigned int frames, unsi
     CLog::LogF(LOGDEBUG, "Possible AQ Loss: Avg. Time Waiting for Audio Driver callback : {}msec",
                (int)m_avgTimeWaiting);
   }
-#endif
 
   hr = m_sourceVoice->SubmitSourceBuffer(&xbuffer);
   if (FAILED(hr))
   {
-    #ifdef _DEBUG
     CLog::LogF(LOGERROR, "submiting buffer failed due to {}", WASAPIErrToStr(hr));
-#endif
     delete ctx;
     return INT_MAX;
   }
