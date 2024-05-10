@@ -16,19 +16,12 @@
 #include "utils/SystemInfo.h"
 #include "utils/log.h"
 
-#ifdef TARGET_WINDOWS_STORE
-#include "platform/win10/AsyncHelpers.h"
-#endif
 #include "platform/win32/CharsetConverter.h"
 
 #include <algorithm>
 #include <stdint.h>
 
 #include <ksmedia.h>
-#include <mfapi.h>
-#include <mmdeviceapi.h>
-#include <mmreg.h>
-#include <wrl/implements.h>
 
 using namespace Microsoft::WRL;
 
@@ -334,7 +327,7 @@ void CAESinkXAudio::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bool fo
     return;
   }
 
-  for(RendererDetail& details : CAESinkFactoryWin::GetRendererDetails())
+  for (RendererDetail& details : CAESinkFactoryWin::GetRendererDetailsWinRT())
   {
     deviceInfo.m_channels.Reset();
     deviceInfo.m_dataFormats.clear();
@@ -347,7 +340,7 @@ void CAESinkXAudio::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bool fo
         deviceChannels += AEChannelNames[c];
     }
 
-    const std::wstring deviceId = KODI::PLATFORM::WINDOWS::ToW(details.strDevicePath);
+    const std::wstring deviceId = KODI::PLATFORM::WINDOWS::ToW(details.strDeviceId);
 
     /* Test format for PCM format iteration */
     wfxex.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
@@ -429,7 +422,7 @@ void CAESinkXAudio::EnumerateDevicesEx(AEDeviceInfoList &deviceInfoList, bool fo
     SafeDestroyVoice(&mSourceVoice);
     SafeDestroyVoice(&mMasterVoice);
 
-    deviceInfo.m_deviceName = details.strDevicePath;
+    deviceInfo.m_deviceName = details.strDeviceId;
     deviceInfo.m_displayName = details.strWinDevType.append(details.strDescription);
     deviceInfo.m_displayNameExtra = std::string("XAudio: ").append(details.strDescription);
     deviceInfo.m_deviceType = details.eDeviceType;

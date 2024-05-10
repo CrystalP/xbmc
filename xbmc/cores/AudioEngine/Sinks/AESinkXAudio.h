@@ -13,9 +13,6 @@
 
 #include <stdint.h>
 
-#include <mmdeviceapi.h>
-#include <ppltasks.h>
-#include <wrl/implements.h>
 #include <x3daudio.h>
 #include <xapofx.h>
 #include <xaudio2.h>

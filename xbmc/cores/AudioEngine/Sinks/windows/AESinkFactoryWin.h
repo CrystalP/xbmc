@@ -175,7 +175,6 @@ static const sampleFormat testFormats[] = { {KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, 32
 
 struct RendererDetail
 {
-  std::string strDevicePath;
   std::string strDeviceId;
   std::string strDescription;
   std::string strWinDevType;
@@ -197,9 +196,13 @@ class CAESinkFactoryWin
 {
 public:
   /*
-    Gets list of audio renderers available on platform
+    Gets list of audio renderers available on platform - using MMDevice
   */
   static std::vector<RendererDetail> GetRendererDetails();
+  /*
+    Gets list of audio renderers available on platform - using WinRT
+  */
+  static std::vector<RendererDetail> GetRendererDetailsWinRT();
   /*
     Gets default device id
   */
