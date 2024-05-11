@@ -22,6 +22,8 @@ const IID IID_IAudioClient = __uuidof(IAudioClient);
 
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);
 DEFINE_PROPERTYKEY(PKEY_Device_EnumeratorName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 24);
+const PROPERTYKEY PKEY_AudioEndpoint_Path{
+    {0x9c119480, 0xddc2, 0x4954, {0xa1, 0x50, 0x5b, 0xd2, 0x40, 0xd4, 0x54, 0xad}}, 1};
 
 extern const char *WASAPIErrToStr(HRESULT err);
 #define EXIT_ON_FAILURE(hr, reason) \
@@ -129,12 +131,21 @@ std::vector<RendererDetail> CAESinkFactoryWin::GetRendererDetails()
     details.uiChannelMask = std::max(varName.uintVal, (unsigned int)KSAUDIO_SPEAKER_STEREO);
     PropVariantClear(&varName);
 
+    hr = pProperty->GetValue(PKEY_AudioEndpoint_Path, &varName);
+    if (FAILED(hr))
+    {
+      CLog::LogF(LOGERROR, "Retrieval of endpoint path failed.");
+      goto failed;
+    }
+
+    details.strDevicePath = KODI::PLATFORM::WINDOWS::FromW(varName.pwszVal);
+    PropVariantClear(&varName);
+
     if (pDevice->GetId(&pwszID) == S_OK)
     {
       if (wstrDDID.compare(pwszID) == 0)
         details.bDefault = true;
 
-      details.strDevicePath = KODI::PLATFORM::WINDOWS::FromW(pwszID);
       CoTaskMemFree(pwszID);
     }
 
