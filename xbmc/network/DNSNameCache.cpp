@@ -20,6 +20,10 @@
 #include "platform/posix/filesystem/SMBWSDiscovery.h"
 #endif
 
+#if defined(TARGET_WINDOWS)
+#include "platform/win32/CharsetConverter.h"
+#endif
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -64,7 +68,7 @@ bool CDNSNameCache::Lookup(const std::string& strHostName, std::string& strIpAdd
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags |= AI_CANONNAME;
-
+  
   if (getaddrinfo(strHostName.c_str(), nullptr, &hints, &res) == 0)
   {
     strIpAddress = CNetworkBase::GetIpStr(res->ai_addr);
@@ -72,6 +76,32 @@ bool CDNSNameCache::Lookup(const std::string& strHostName, std::string& strIpAdd
     g_DNSCache.Add(strHostName, strIpAddress);
     return true;
   }
+  
+#if defined(TARGET_WINDOWS)
+  static DWORD nameSpaces[]{NS_NETBT, NS_WINS, NS_BTH, NS_NTDS};
+
+  const std::wstring wStrHostName = KODI::PLATFORM::WINDOWS::ToW(strHostName);
+  ADDRINFOEXW wHints{};
+  ADDRINFOEXW* wRes;
+
+  wHints.ai_family = AF_UNSPEC;
+  wHints.ai_socktype = SOCK_STREAM;
+  wHints.ai_flags = AI_CANONNAME;
+
+  for (auto ns : nameSpaces)
+  {
+    INT status = GetAddrInfoExW(wStrHostName.c_str(), NULL, ns, nullptr, &wHints, &wRes, 0,
+                                nullptr, nullptr, 0);
+
+    if (status == NO_ERROR)
+    {
+      strIpAddress = CNetworkBase::GetIpStr(wRes->ai_addr);
+      FreeAddrInfoExW(wRes);
+      g_DNSCache.Add(strHostName, strIpAddress);
+      return true;
+    }
+  }
+#endif
 
   CLog::Log(LOGERROR, "Unable to lookup host: '{}'", strHostName);
   return false;
