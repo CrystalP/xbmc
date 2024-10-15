@@ -17,6 +17,7 @@
 #include "VideoRenderers/RenderManager.h"
 #include "VideoRenderers/windows/RendererBase.h"
 #include "VideoRenderers/windows/RendererDXVA.h"
+#include "platform/win32/WinErrorUtils.h"
 #include "rendering/dx/RenderContext.h"
 #include "utils/StringUtils.h"
 #include "utils/log.h"
@@ -97,13 +98,13 @@ bool CProcessorHD::InitProcessor()
   if (FAILED(hr = pD3DDeviceContext.As(&m_pVideoContext)))
   {
     CLog::LogF(LOGWARNING, "video context initialization is failed. Error {}",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return false;
   }
   if (FAILED(hr = pD3DDevice.As(&m_pVideoDevice)))
   {
     CLog::LogF(LOGWARNING, "video device initialization is failed. Error {}",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return false;
   }
 
@@ -515,7 +516,7 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
     {
       CLog::LogF(FAILED(hr) ? LOGERROR : LOGWARNING,
                  "VideoProcessorBlt returned {} while VideoProcessorBlt execution.",
-                 DX::GetErrorDescription(hr));
+                 CWinError::FormatHRESULT(hr));
     }
   }
 
@@ -580,7 +581,7 @@ void CProcessorHD::EnableIntelVideoSuperResolution()
   if (FAILED(hr))
   {
     CLog::LogF(LOGWARNING, "Failed to set the Intel VPE version with error {}.",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return;
   }
 
@@ -592,7 +593,7 @@ void CProcessorHD::EnableIntelVideoSuperResolution()
   if (FAILED(hr))
   {
     CLog::LogF(LOGWARNING, "Failed to set the Intel VPE mode with error {}.",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return;
   }
 
@@ -604,7 +605,7 @@ void CProcessorHD::EnableIntelVideoSuperResolution()
   if (FAILED(hr))
   {
     CLog::LogF(LOGWARNING, "Failed to set the Intel VPE scaling type with error {}.",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return;
   }
 
@@ -628,7 +629,7 @@ void CProcessorHD::EnableNvidiaRTXVideoSuperResolution()
   if (FAILED(hr))
   {
     CLog::LogF(LOGWARNING, "Failed to set the NVIDIA video process stream extension with error {}.",
-               DX::GetErrorDescription(hr));
+               CWinError::FormatHRESULT(hr));
     return;
   }
 

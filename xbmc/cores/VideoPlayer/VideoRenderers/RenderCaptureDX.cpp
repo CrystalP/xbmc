@@ -9,6 +9,7 @@
 #include "RenderCaptureDX.h"
 
 #include "cores/IPlayer.h"
+#include "platform/win32/WinErrorUtils.h"
 #include "rendering/dx/DeviceResources.h"
 #include "rendering/dx/RenderContext.h"
 #include "utils/log.h"
@@ -92,7 +93,7 @@ void CRenderCaptureDX::BeginRender()
       result = pDevice->CreateQuery(&queryDesc, m_query.ReleaseAndGetAddressOf());
       if (FAILED(result))
       {
-        CLog::LogF(LOGERROR, "CreateQuery failed {}", DX::GetErrorDescription(result));
+        CLog::LogF(LOGERROR, "CreateQuery failed {}", CWinError::FormatHRESULT(result));
         m_asyncSupported = false;
         m_query = nullptr;
       }

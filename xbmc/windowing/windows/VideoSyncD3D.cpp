@@ -11,6 +11,7 @@
 #include "Utils/MathUtils.h"
 #include "Utils/TimeUtils.h"
 #include "cores/VideoPlayer/VideoReferenceClock.h"
+#include "platform/win32/WinErrorUtils.h"
 #include "rendering/dx/DeviceResources.h"
 #include "rendering/dx/RenderContext.h"
 #include "utils/StringUtils.h"
@@ -97,7 +98,7 @@ void CVideoSyncD3D::Run(CEvent& stopEvent)
         CLog::LogF(LOGWARNING, "failed to detect vblank - screen asleep?");
 
       if (!SUCCEEDED(hr))
-        CLog::LogF(LOGERROR, "error waiting for vblank, {}", DX::GetErrorDescription(hr));
+        CLog::LogF(LOGERROR, "error waiting for vblank, {}", CWinError::FormatHRESULT(hr));
 
       validVBlank = false;
 
