@@ -16,6 +16,7 @@
 #include "utils/Geometry.h"
 
 #include <mutex>
+#include <optional>
 
 #include <wrl/client.h>
 
@@ -110,5 +111,6 @@ protected:
   ProcessorConversion m_lastConversion{};
   AVColorSpace m_lastColorSpace{AVCOL_SPC_UNSPECIFIED};
   bool m_lastFullRange{false};
+  std::optional<D3D11_VIDEO_FRAME_FORMAT> m_lastFrameFormat;
 };
 };

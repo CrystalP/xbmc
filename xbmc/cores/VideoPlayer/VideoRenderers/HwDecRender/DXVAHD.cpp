@@ -411,13 +411,17 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
   else if ((flags & RENDER_FLAG_FIELD1) && (flags & RENDER_FLAG_TOP))
     dxvaFrameFormat = D3D11_VIDEO_FRAME_FORMAT_INTERLACED_BOTTOM_FIELD_FIRST;
 
-  m_pVideoContext->VideoProcessorSetStreamFrameFormat(m_pVideoProcessor.Get(), DEFAULT_STREAM_INDEX,
-                                                      dxvaFrameFormat);
+  if (!m_lastFrameFormat.has_value() || dxvaFrameFormat != m_lastFrameFormat.value())
+  {
+    m_pVideoContext->VideoProcessorSetStreamFrameFormat(m_pVideoProcessor.Get(),
+                                                        DEFAULT_STREAM_INDEX, dxvaFrameFormat);
+    m_lastFrameFormat = dxvaFrameFormat;
+  }
 
   D3D11_VIDEO_PROCESSOR_STREAM stream_data = {};
   stream_data.Enable = TRUE;
 
-  const bool frameProgressive = dxvaFrameFormat == D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE;
+  const bool frameProgressive = (dxvaFrameFormat == D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
 
   // Progressive or Interlaced video at normal rate.
   const bool secondField = ((flags & RENDER_FLAG_FIELD1) && !frameProgressive) ? 1 : 0;
