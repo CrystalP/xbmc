@@ -515,7 +515,9 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
   HRESULT hr{};
   if (pOutputView)
   {
-    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(), 0, 1,
+    static unsigned int outputFrame{};
+    outputFrame++;
+    hr = m_pVideoContext->VideoProcessorBlt(m_pVideoProcessor.Get(), pOutputView.Get(), outputFrame, 1,
                                             &stream_data);
     if (S_OK != hr)
     {
