@@ -525,7 +525,137 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
                  "VideoProcessorBlt returned {} while VideoProcessorBlt execution.",
                  CWIN32Util::FormatHRESULT(hr));
     }
-    DX::DeviceResources::Get()->GetImmediateContext()->Flush();
+    /*
+    {
+      // Create a query to be able to wait for the completion of GPU work
+      D3D11_QUERY_DESC qd;
+      ZeroMemory(&qd, sizeof(qd));
+      qd.Query = D3D11_QUERY_EVENT;
+      ComPtr<ID3D11Query> qr;
+      hr =
+          DX::DeviceResources::Get()->GetD3DDevice()->CreateQuery(&qd, qr.ReleaseAndGetAddressOf());
+      if (FAILED(hr))
+        return hr;
+
+      DX::DeviceResources::Get()->GetImmediateContext()->Flush();
+      DX::DeviceResources::Get()->GetImmediateContext()->End(qr.Get());
+
+      // Wait for the flush/query to end:
+
+      while (S_FALSE ==
+             DX::DeviceResources::Get()->GetImmediateContext()->GetData(qr.Get(), nullptr, 0, 0))
+        ;
+      qr.Reset();
+    }
+    
+    
+    // Flush1 ALL
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Flush1(D3D11_CONTEXT_TYPE_ALL, ev);
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+    
+    // Flush1 VIDEO
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Flush1(D3D11_CONTEXT_TYPE_VIDEO, ev);
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+    */
+    
+    static UINT64 fenceValue = 0;
+    fenceValue++;
+    /*
+    // ID3D11Fence
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11Device> device = DX::DeviceResources::Get()->GetD3DDevice();
+      ComPtr<ID3D11Device5> d3ddev5;
+      device.As(&d3ddev5);
+      ComPtr<ID3D11Fence> fence;
+      d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+      fence->SetEventOnCompletion(fenceValue, ev);
+
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Signal(fence.Get(), fenceValue);
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+    */
+    // ID3D11Fence  Flush()
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11Device> device = DX::DeviceResources::Get()->GetD3DDevice();
+      ComPtr<ID3D11Device5> d3ddev5;
+      device.As(&d3ddev5);
+      ComPtr<ID3D11Fence> fence;
+      d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+      fence->SetEventOnCompletion(fenceValue, ev);
+
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Signal(fence.Get(), fenceValue);
+      deviceContext1->Flush();
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+    /*
+    // ID3D11Fence Flush1(ALL)
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11Device> device = DX::DeviceResources::Get()->GetD3DDevice();
+      ComPtr<ID3D11Device5> d3ddev5;
+      device.As(&d3ddev5);
+      ComPtr<ID3D11Fence> fence;
+      d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+      fence->SetEventOnCompletion(fenceValue, ev);
+
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Signal(fence.Get(), fenceValue);
+      deviceContext4->Flush1(D3D11_CONTEXT_TYPE_ALL, NULL);
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+
+    // ID3D11Fence Flush1(VIDEO)
+    {
+      HANDLE ev = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+      ComPtr<ID3D11Device> device = DX::DeviceResources::Get()->GetD3DDevice();
+      ComPtr<ID3D11Device5> d3ddev5;
+      device.As(&d3ddev5);
+      ComPtr<ID3D11Fence> fence;
+      d3ddev5->CreateFence(0, D3D11_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence));
+      fence->SetEventOnCompletion(fenceValue, ev);
+
+      ComPtr<ID3D11DeviceContext1> deviceContext1 =
+          DX::DeviceResources::Get()->GetImmediateContext();
+      ComPtr<ID3D11DeviceContext4> deviceContext4;
+      deviceContext1.As(&deviceContext4);
+      deviceContext4->Signal(fence.Get(), fenceValue);
+      deviceContext4->Flush1(D3D11_CONTEXT_TYPE_VIDEO, NULL);
+      WaitForSingleObject(ev, INFINITE);
+      CloseHandle(ev);
+    }
+*/
   }
 
   if (!m_configured)
