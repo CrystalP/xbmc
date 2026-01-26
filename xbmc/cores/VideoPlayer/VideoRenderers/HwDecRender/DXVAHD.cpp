@@ -523,6 +523,7 @@ bool CProcessorHD::Render(CRect src, CRect dst, ID3D11Resource* target, CRenderB
                  "VideoProcessorBlt returned {} while VideoProcessorBlt execution.",
                  CWIN32Util::FormatHRESULT(hr));
     }
+    DX::DeviceResources::Get()->GetImmediateContext()->Flush();
   }
 
   if (!m_configured)
