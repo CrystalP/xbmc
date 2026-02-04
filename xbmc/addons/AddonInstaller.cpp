@@ -45,6 +45,7 @@
 #include "utils/XTimeUtils.h"
 #include "utils/log.h"
 
+#include <format>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -504,10 +505,10 @@ bool CAddonInstaller::InstallFromZip(const std::string &path)
           24045, StringUtils::Format(g_localizeStrings.Get(24143), path),
           "special://xbmc/media/icon256x256.png", EventLevel::Error));
 
-    CLog::Log(
-        LOGERROR,
-        "CAddonInstaller: installing addon failed '{}' - itemsize: {}, first item is folder: {}",
-        CURL::GetRedacted(path), items.Size(), items[0]->IsFolder());
+    CLog::Log(LOGERROR, "CAddonInstaller: installing addon failed '{}' - item count: {}{}",
+              CURL::GetRedacted(path), items.Size(),
+              items.Size() > 0 ? fmt::format(", first item is folder: {}", items[0]->IsFolder())
+                               : "");
     return false;
   }
 
