@@ -151,16 +151,28 @@ void CGUIFontTTFDX::LastEnd()
     else
     {
       // clip using vertex shader
-      DX::Windowing()->ResetScissors();
+      const float scaleX = context.GetGUIScaleX();
+      const float scaleY = context.GetGUIScaleY();
 
-      const float x1 =
-          m_vertexTrans[i].m_clip.x1 - m_vertexTrans[i].m_translateX - m_vertexTrans[i].m_offsetX;
-      const float y1 =
-          m_vertexTrans[i].m_clip.y1 - m_vertexTrans[i].m_translateY - m_vertexTrans[i].m_offsetY;
-      const float x2 =
-          m_vertexTrans[i].m_clip.x2 - m_vertexTrans[i].m_translateX - m_vertexTrans[i].m_offsetX;
-      const float y2 =
-          m_vertexTrans[i].m_clip.y2 - m_vertexTrans[i].m_translateY - m_vertexTrans[i].m_offsetY;
+      if (scaleX == 0 || scaleY == 0)
+      {
+        CLog::LogF(LOGERROR, "Invalid GUI scaling ({}x{}).", scaleX, scaleY);
+        continue;
+      }
+
+      const float x1 = (m_vertexTrans[i].m_clip.x1 - m_vertexTrans[i].m_translateX -
+                        m_vertexTrans[i].m_offsetX) /
+                       scaleX;
+      const float y1 = (m_vertexTrans[i].m_clip.y1 - m_vertexTrans[i].m_translateY -
+                        m_vertexTrans[i].m_offsetY) /
+                       scaleY;
+      const float x2 = (m_vertexTrans[i].m_clip.x2 - m_vertexTrans[i].m_translateX -
+                        m_vertexTrans[i].m_offsetX) /
+                       scaleX;
+      const float y2 = (m_vertexTrans[i].m_clip.y2 - m_vertexTrans[i].m_translateY -
+                        m_vertexTrans[i].m_offsetY) /
+                       scaleY;
+
       pGUIShader->SetShaderClip(x1, y1, x2, y2);
 
       // Texture steps
@@ -171,8 +183,9 @@ void CGUIFontTTFDX::LastEnd()
         continue;
       }
 
-      const float stepX = context.GetGUIScaleX() / static_cast<float>(m_textureWidth);
-      const float stepY = context.GetGUIScaleY() / static_cast<float>(m_textureHeight);
+      const float stepX = 1.f / static_cast<float>(m_textureWidth);
+      const float stepY = 1.f / static_cast<float>(m_textureHeight);
+
       pGUIShader->SetTexStep(stepX, stepY, 1, 1);
     }
 
