@@ -42,6 +42,11 @@ public:
   ~CGUIShaderDX();
 
   bool Initialize();
+
+  /*!
+   * \brief Activate shaders and recalculate clipping information.
+   * \param flags Shader method to activate
+   */
   void Begin(unsigned int flags);
   void End(void);
   void ApplyStateBlock(void);

@@ -87,7 +87,13 @@ bool CGUIShaderDX::Initialize()
 
   for (std::size_t i = 0; i < SHADER_METHOD_RENDER_COUNT; i++)
   {
-    m_shaders[i].m_vs = &m_vertexShader;
+    // All methods except the two font ones share guishader_vert.hlsl
+    if (i == SHADER_METHOD_RENDER_FONT)
+      m_shaders[i].m_vs = &m_vertexShaderSimple;
+    else if (i == SHADER_METHOD_RENDER_FONT_SHADER_CLIP)
+      m_shaders[i].m_vs = &m_vertexShaderClip;
+    else
+      m_shaders[i].m_vs = &m_vertexShader;
 
     if (!m_shaders[i].m_ps.Create(shaderCode[i].pBytecode, shaderCode[i].BytecodeLength))
       goto error;
@@ -396,28 +402,35 @@ void CGUIShaderDX::ApplyChanges(void)
     {
       cbWorld* buffer = (cbWorld*)res.pData;
 
-      if (m_cbWorldViewProj.m_isDirty)
+      // Vertex shader constants
+      if (m_currentShader == SHADER_METHOD_RENDER_FONT ||
+          m_currentShader == SHADER_METHOD_RENDER_FONT_SHADER_CLIP)
       {
-        XMMATRIX worldView = XMMatrixMultiply(m_cbWorldViewProj.world, m_cbWorldViewProj.view);
-        m_cbWorldViewProj.m_wvp =
-            XMMatrixMultiplyTranspose(worldView, m_cbWorldViewProj.projection);
-        m_cbWorldViewProj.m_isDirty = false;
+        buffer->m_matrix = m_matrix;
+        buffer->m_shaderClip = m_shaderClip;
+        buffer->m_texStep = m_texStep;
+        buffer->m_texStep2 = m_texStep2;
       }
-      buffer->wvp = m_cbWorldViewProj.m_wvp;
+      else
+      {
+        if (m_cbWorldViewProj.m_isDirty)
+        {
+          XMMATRIX worldView = XMMatrixMultiply(m_cbWorldViewProj.world, m_cbWorldViewProj.view);
+          m_cbWorldViewProj.m_wvp =
+              XMMatrixMultiplyTranspose(worldView, m_cbWorldViewProj.projection);
+          m_cbWorldViewProj.m_isDirty = false;
+        }
+        buffer->wvp = m_cbWorldViewProj.m_wvp;
+      }
+      // Translate from GL convention (-1 far 1 near) to D3D (0 far 1 near)
+      buffer->depth = m_depth / 2.f + 0.5f;
+
+      // Pixel shader constants
       buffer->blackLevel = (DX::Windowing()->UseLimitedColor() ? 16.f / 255.f : 0.f);
       buffer->colorRange = (DX::Windowing()->UseLimitedColor() ? (235.f - 16.f) / 255.f : 1.0f);
       if (DX::Windowing()->IsTransferPQ())
         buffer->sdrPeakLum = 10000.0f / DX::Windowing()->GetGuiSdrPeakLuminance();
       buffer->PQ = (DX::Windowing()->IsTransferPQ() ? 1 : 0);
-
-      // Translate from GL convention (-1 far 1 near) to D3D (0 far 1 near)
-      buffer->depth = m_depth / 2.f + 0.5f;
-
-      // Font VS constants
-      buffer->m_matrix = m_matrix;
-      buffer->m_shaderClip = m_shaderClip;
-      buffer->m_texStep = m_texStep;
-      buffer->m_texStep2 = m_texStep2;
 
       pContext->Unmap(m_pWVPBuffer.Get(), 0);
 
