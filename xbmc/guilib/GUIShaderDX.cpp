@@ -15,12 +15,14 @@
 // shaders bytecode includes
 #include "guishader_checkerboard_left.h"
 #include "guishader_checkerboard_right.h"
+#include "guishader_clip_vert.h"
 #include "guishader_default.h"
 #include "guishader_fonts.h"
 #include "guishader_interlaced_left.h"
 #include "guishader_interlaced_right.h"
 #include "guishader_multi_texture_blend.h"
 #include "guishader_multi_texture_blend_nearest.h"
+#include "guishader_simple_vert.h"
 #include "guishader_texture.h"
 #include "guishader_texture_nearest.h"
 #include "guishader_texture_noblend.h"
@@ -41,6 +43,7 @@ constexpr std::array<D3D_SHADER_DATA, SHADER_METHOD_RENDER_COUNT> shaderCode =
   { guishader_default, sizeof(guishader_default) }, // SHADER_METHOD_RENDER_DEFAULT
   { guishader_texture_noblend, sizeof(guishader_texture_noblend) }, // SHADER_METHOD_RENDER_TEXTURE_NOBLEND
   { guishader_fonts, sizeof(guishader_fonts) }, // SHADER_METHOD_RENDER_FONT
+  { guishader_fonts, sizeof(guishader_fonts) }, // SHADER_METHOD_RENDER_FONT_SHADER_CLIP
   { guishader_texture, sizeof(guishader_texture) }, // SHADER_METHOD_RENDER_TEXTURE_BLEND
   { guishader_texture_nearest, sizeof(guishader_texture_nearest) }, // SHADER_METHOD_RENDER_TEXTURE_BLEND_NEAREST
   { guishader_multi_texture_blend, sizeof(guishader_multi_texture_blend) }, // SHADER_METHOD_RENDER_MULTI_TEXTURE_BLEND
@@ -73,8 +76,14 @@ bool CGUIShaderDX::Initialize()
       {"TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT, 0, 36, D3D11_INPUT_PER_VERTEX_DATA, 0},
   };
 
-  if (!m_vertexShader.Create(guishader_vert, sizeof(guishader_vert), layout, ARRAYSIZE(layout)))
+  if (!m_vertexShader.Create(guishader_vert, sizeof(guishader_vert), layout, ARRAYSIZE(layout)) ||
+      !m_vertexShaderClip.Create(guishader_clip_vert, sizeof(guishader_clip_vert), layout,
+                                 ARRAYSIZE(layout)) ||
+      !m_vertexShaderSimple.Create(guishader_simple_vert, sizeof(guishader_simple_vert), layout,
+                                   ARRAYSIZE(layout)))
+  {
     goto error;
+  }
 
   for (std::size_t i = 0; i < SHADER_METHOD_RENDER_COUNT; i++)
   {
@@ -96,6 +105,8 @@ error:
   std::ranges::for_each(m_shaders, [](auto& s) { s.m_ps.Release(); });
 
   m_vertexShader.Release();
+  m_vertexShaderClip.Release();
+  m_vertexShaderSimple.Release();
 
   return false;
 }
@@ -344,6 +355,30 @@ void CGUIShaderDX::SetDepth(const float depth)
   m_depth = depth;
 }
 
+void XM_CALLCONV CGUIShaderDX::SetMatrix(const DirectX::XMMATRIX& value)
+{
+  m_bIsWVPDirty = true;
+  m_matrix = value;
+}
+
+void CGUIShaderDX::SetShaderClip(float x1, float y1, float x2, float y2)
+{
+  m_bIsWVPDirty = true;
+  m_shaderClip.x = x1;
+  m_shaderClip.y = y1;
+  m_shaderClip.z = x2;
+  m_shaderClip.w = y2;
+}
+
+void CGUIShaderDX::SetTexStep(float stepX, float stepY, float stepX2, float stepY2)
+{
+  m_bIsWVPDirty = true;
+  m_texStep.x = stepX;
+  m_texStep.y = stepY;
+  m_texStep2.x = stepX2;
+  m_texStep2.y = stepY2;
+}
+
 void CGUIShaderDX::ApplyChanges(void)
 {
   ComPtr<ID3D11DeviceContext> pContext = DX::DeviceResources::Get()->GetD3DContext();
@@ -377,7 +412,15 @@ void CGUIShaderDX::ApplyChanges(void)
 
       // Translate from GL convention (-1 far 1 near) to D3D (0 far 1 near)
       buffer->depth = m_depth / 2.f + 0.5f;
+
+      // Font VS constants
+      buffer->m_matrix = m_matrix;
+      buffer->m_shaderClip = m_shaderClip;
+      buffer->m_texStep = m_texStep;
+      buffer->m_texStep2 = m_texStep2;
+
       pContext->Unmap(m_pWVPBuffer.Get(), 0);
+
       m_bIsWVPDirty = false;
     }
   }
