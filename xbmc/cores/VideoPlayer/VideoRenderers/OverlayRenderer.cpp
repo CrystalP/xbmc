@@ -107,6 +107,8 @@ std::shared_ptr<const SBitmapRenderResult> RenderBitmapJob(const SBitmapRenderJo
   if (!job.overlay)
     return result;
 
+  result->sourceOverlay = job.overlay.get();
+
   if (job.overlay->IsOverlayType(DVDOVERLAY_TYPE_IMAGE))
   {
     const auto& o = static_cast<const CDVDOverlayImage&>(*job.overlay);
@@ -630,25 +632,17 @@ void CRenderer::PrepareOverlays(int idx, double lookaheadPts)
       job.overlay = e.overlay_dvd;
       m_bitmapRenderer->RequestRender(job);
 
+      // GetLatestResult() has no per-job identity of its own - it is just
+      // "the most recent thing the worker finished" - so verify it was
+      // actually decoded from *this* overlay before accepting it. Without
+      // this, a slow decode for a just-superseded overlay object could
+      // complete after a new one has taken its place in m_buffers and get
+      // shown under the new object's placement, however briefly.
       auto result = m_bitmapRenderer->GetLatestResult();
-      if (result && &*e.overlay_dvd == nullptr)
-        result.reset(); // unreachable; keeps analyzers happy about null overlay_dvd
-      // Only accept the latest result if it was actually decoded from
-      // *this* overlay object - GetLatestResult has no identity filter of
-      // its own (unlike the ass path's pts-based matching).
-      if (result)
-      {
-        // The job we just submitted carries the identity check: if the
-        // worker's latest published result came from a job whose overlay
-        // pointer differs from this one, ignore it - it belongs to some
-        // other bitmap overlay (e.g. we just switched from one event to
-        // the next) and will be superseded once our own job completes.
-        // We approximate this cheaply by re-deriving the job the result
-        // must have come from is unknowable from SBitmapRenderResult
-        // alone by design (it is decode-only), so identity is instead
-        // tracked via the GUI-thread-side cache below at Convert() time.
+
+      if (result && result->sourceOverlay == e.overlay_dvd.get())
         e.bitmapResult = result;
-      }
+
       if (!prevBitmapResult && e.bitmapResult && e.bitmapResult->hasImage)
         doMarkDirty = true;
       continue;

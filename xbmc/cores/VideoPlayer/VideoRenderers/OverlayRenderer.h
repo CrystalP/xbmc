@@ -115,6 +115,7 @@ namespace OVERLAY {
     // Not used for pts-matching (bitmap overlays are event-scoped, not
     // re-evaluated per frame); present for interface uniformity only.
     double pts{0.0};
+    const CDVDOverlay* sourceOverlay{nullptr}; ///< Identity of the decoded from CDVDOverlay
     bool hasImage{false};
     std::vector<uint32_t> rgba; // tightly packed, width*height, row-major
     int width{0};
