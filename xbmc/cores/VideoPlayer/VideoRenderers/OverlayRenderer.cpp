@@ -61,6 +61,7 @@
 #include "settings/DisplaySettings.h"
 #include "settings/Settings.h"
 #include "settings/SettingsComponent.h"
+#include "utils/log.h"
 #include "windowing/GraphicContext.h"
 #include "windowing/WinSystem.h"
 
@@ -773,6 +774,14 @@ void CRenderer::PrepareOverlays(int idx, double lookaheadPts)
     // "past" one rather than showing nothing while the worker catches up
     // on a run of slow cues. See file-level design notes.
     e.assResult = m_assRenderer->GetBestResult(e.pts);
+
+    if (e.assResult.get() != prevAssResult.get())
+    {
+      CLog::Log(LOGDEBUG,
+                "ASYNC_SUB[ass]: display pts={:.3f} now showing result pts={:.3f} (hasImage={})",
+                e.pts / DVD_TIME_BASE, e.assResult ? e.assResult->pts / DVD_TIME_BASE : -1.0,
+                e.assResult && e.assResult->hasImage);
+    }
 
     if (e.assResult && (!prevAssResult || prevAssResult.get() != e.assResult.get()) &&
         e.assResult->hasImage)

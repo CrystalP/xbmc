@@ -12,6 +12,7 @@
 #include "threads/CriticalSection.h"
 #include "threads/Event.h"
 #include "threads/Thread.h"
+#include "utils/log.h"
 
 #include <atomic>
 #include <chrono>
@@ -86,7 +87,9 @@ public:
   using RenderFunc = std::function<std::shared_ptr<const TResult>(const TJob&)>;
 
   CAsyncSubtitleRenderer(const std::string& threadName, RenderFunc renderFunc)
-    : CThread(threadName.c_str()), m_renderFunc(std::move(renderFunc))
+    : CThread(threadName.c_str()),
+      m_threadName(threadName),
+      m_renderFunc(std::move(renderFunc))
   {
     Create();
   }
@@ -98,6 +101,16 @@ public:
     std::unique_lock lock(m_requestLock);
     if (m_lastSubmittedJob && *m_lastSubmittedJob == job)
       return;
+
+    if (m_pendingJob)
+    {
+      // The worker hasn't even started the previous job yet - it is about
+      // to be overwritten and will never be rendered. This, not a slow
+      // render itself, is what "skips a cue entirely" looks like.
+      CLog::Log(LOGDEBUG, "ASYNC_SUB[{}]: dropping never-started job (#{} dropped total)",
+                m_threadName, ++m_droppedPendingJobs);
+    }
+
     m_lastSubmittedJob = std::make_unique<TJob>(job);
     m_pendingJob = std::make_unique<TJob>(std::move(job));
     m_pendingEpoch = m_epoch.load();
@@ -166,8 +179,13 @@ private:
       // The expensive part: may take anywhere from <1ms to 100+ms
       // depending on the source. The GUI/render thread is never blocked
       // by this call; it only ever reads whatever was last published.
+      const auto t0 = std::chrono::steady_clock::now();
       std::shared_ptr<const TResult> result = m_renderFunc(*job);
-
+      const double renderMs =
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+      CLog::Log(LOGDEBUG, "ASYNC_SUB[{}]: render for pts={:.3f} took {:.1f}ms", m_threadName,
+                result->pts / DVD_TIME_BASE, renderMs);
+ 
       std::unique_lock lock(m_resultLock);
       // Deciding "is this still valid" and "publish it" must happen under
       // the same lock Flush() uses to bump the epoch, otherwise a Flush()
@@ -175,14 +193,24 @@ private:
       // publish a result the flush was supposed to have discarded.
       if (epoch == m_epoch.load())
       {
+        if (m_results[m_newest])
+          CLog::Log(LOGDEBUG, "ASYNC_SUB[{}]: superseding unread result pts={:.3f}", m_threadName,
+                    m_results[m_newest]->pts / DVD_TIME_BASE);
         m_newest = 1 - m_newest;
         m_results[m_newest] = std::move(result);
       }
-      // else: Flush() happened while rendering; discard silently.
+      else
+      {
+        // Flush() happened while rendering; discard silently.
+        CLog::Log(LOGDEBUG, "ASYNC_SUB[{}]: discarding stale-epoch result for pts={:.3f}",
+                  m_threadName, result->pts / DVD_TIME_BASE);
+      }
     }
   }
 
+  std::string m_threadName;
   RenderFunc m_renderFunc;
+  uint64_t m_droppedPendingJobs{0};
 
   mutable CCriticalSection m_requestLock;
   CEvent m_requestEvent;
