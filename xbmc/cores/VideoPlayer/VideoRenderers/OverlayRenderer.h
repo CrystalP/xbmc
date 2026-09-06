@@ -361,6 +361,12 @@ namespace OVERLAY {
     const CDVDOverlay* m_cachedBitmapOverlaySource{nullptr};
     std::shared_ptr<COverlay> m_cachedBitmapOverlay;
 
+    // GUI-thread-only: last e.pts seen for the libass container, used to
+    // detect seeks/discontinuities directly at the point pts is consumed
+    // (see PrepareOverlays) rather than relying on a flush call's timing,
+    // which can land before the presented pts actually jumps.
+    double m_lastPreparedAssPts{DVD_NOPTS_VALUE};
+
     // Current subtitle position
     int m_subtitlePosition{0};
     // Current subtitle position from resolution info,

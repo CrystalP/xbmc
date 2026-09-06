@@ -248,6 +248,7 @@ void CRenderer::FlushAsyncSubtitleState()
   m_lastConvertedBitmapResult.reset();
   m_cachedBitmapOverlaySource = nullptr;
   m_cachedBitmapOverlay.reset();
+  m_lastPreparedAssPts = DVD_NOPTS_VALUE;
 }
 
 void CRenderer::Flush()
@@ -742,6 +743,26 @@ void CRenderer::PrepareOverlays(int idx, double lookaheadPts)
       else
         rOpts.horizontalAlignment = SUBTITLES::STYLE::HorizontalAlign::CENTER;
     }
+
+    // Ordinary frame-to-frame pts deltas are a small fraction of a second;
+    // a jump past this threshold, in either direction, means a seek (or
+    // similar discontinuity) landed since the last call. Any async result
+    // history at that point was rendered for pts values on the wrong side
+    // of the jump - close-in-value-but-stale content that the ordinary
+    // "not in the future" rule would otherwise happily match against the
+    // new position - so it must be discarded here, at the point the jump
+    // is actually observed, rather than only at the seek's own flush call
+    // (DiscardBuffer), which necessarily fires before the presented pts
+    // has caught up to the new position and so cannot see this coming.
+    constexpr double DISCONTINUITY_THRESHOLD = DVD_TIME_BASE; // 1 second
+    if (m_lastPreparedAssPts != DVD_NOPTS_VALUE &&
+        std::fabs(e.pts - m_lastPreparedAssPts) > DISCONTINUITY_THRESHOLD)
+    {
+      m_assRenderer->Flush();
+      m_lastConvertedAssResult.reset();
+      m_cachedAssOverlay.reset();
+    }
+    m_lastPreparedAssPts = e.pts;
 
     // Submit the lookahead request (next presented slot's pts, when
     // known) so it has a full GUI tick to complete before it is actually
