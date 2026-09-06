@@ -238,21 +238,6 @@ void CRenderer::UnInit()
   m_bitmapRenderer.reset();
 }
 
-void CRenderer::FlushAsyncSubtitleState()
-{
-  std::unique_lock lock(m_section);
-  if (m_assRenderer)
-    m_assRenderer->Flush();
-  if (m_bitmapRenderer)
-    m_bitmapRenderer->Flush();
-  m_lastConvertedAssResult.reset();
-  m_cachedAssOverlay.reset();
-  m_lastConvertedBitmapResult.reset();
-  m_cachedBitmapOverlaySource = nullptr;
-  m_cachedBitmapOverlay.reset();
-  m_lastPreparedAssPts = DVD_NOPTS_VALUE;
-}
-
 void CRenderer::Flush()
 {
   std::unique_lock lock(m_section);
@@ -263,7 +248,16 @@ void CRenderer::Flush()
   ReleaseCache();
   Reset();
 
-  FlushAsyncSubtitleState();
+  if (m_assRenderer)
+    m_assRenderer->Flush();
+  if (m_bitmapRenderer)
+    m_bitmapRenderer->Flush();
+  m_lastConvertedAssResult.reset();
+  m_cachedAssOverlay.reset();
+  m_lastConvertedBitmapResult.reset();
+  m_cachedBitmapOverlaySource = nullptr;
+  m_cachedBitmapOverlay.reset();
+  m_lastPreparedAssPts = DVD_NOPTS_VALUE;
 }
 
 void CRenderer::Reset()

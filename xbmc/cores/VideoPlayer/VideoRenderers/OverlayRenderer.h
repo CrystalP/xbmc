@@ -241,17 +241,6 @@ namespace OVERLAY {
 
     void Release(int idx);
 
-    /*!
-     * \brief Clear the async decode workers' pending request and result
-     *  history, without touching m_buffers, the texture cache, or
-     *  subtitle-position calibration state. Called on every seek
-     *  (CRenderManager::DiscardBuffer) so stale pre-seek subtitle content
-     *  can never be matched against a post-seek pts; the full Flush()
-     *  below also calls this, for the heavier stream-reconfiguration
-     *  case.
-     */
-    void FlushAsyncSubtitleState();
-
     /*
      * \brief pts already recorded (by AddOverlay, delay-adjusted) for the
      *  TEXT/SSA overlay in buffer slot 'idx', or DVD_NOPTS_VALUE if that

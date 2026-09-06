@@ -1169,14 +1169,6 @@ void CRenderManager::DiscardBuffer()
 {
   std::unique_lock lock2(m_presentlock);
 
-  // A seek is about to jump the presentation pts elsewhere; any in-flight
-  // or completed-but-unconsumed async subtitle render targets the old
-  // position and must not be matched against the new one. This is
-  // narrower than the full m_overlays.Flush() (CRenderManager::Flush) -
-  // it leaves buffer slots, the texture cache, and subtitle-position
-  // calibration state untouched, since those aren't seek-scoped.
-  m_overlays.FlushAsyncSubtitleState();
-
   while(!m_queued.empty())
   {
     m_discard.push_back(m_queued.front());
