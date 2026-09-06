@@ -66,7 +66,12 @@ namespace OVERLAY
  *    render already in flight when Flush() is called cannot be
  *    interrupted; it is left to finish, but its result is silently
  *    dropped instead of published, since it carries a now-stale epoch.
- *    This keeps Flush() itself instant (never blocks on the worker) while
+ *    The epoch check happens inside the same critical section that
+ *    Flush() uses to bump the epoch and clear history, so a render that
+ *    finishes concurrently with a Flush() call cannot slip its result in
+ *    between the check and the publish - whichever of the two reaches
+ *    the lock first fully completes before the other proceeds. This
+ *    keeps Flush() itself instant (never blocks on the worker) while
  *    guaranteeing a post-flush read can never observe pre-flush content.
  *
  *  TJob must be equality-comparable (operator==), used for request
@@ -162,12 +167,17 @@ private:
       // by this call; it only ever reads whatever was last published.
       std::shared_ptr<const TResult> result = m_renderFunc(*job);
 
-      if (epoch != m_epoch.load())
-        continue; // Flush() happened while rendering; discard silently.
-
       std::unique_lock lock(m_resultLock);
-      m_newest = 1 - m_newest;
-      m_results[m_newest] = std::move(result);
+      // Deciding "is this still valid" and "publish it" must happen under
+      // the same lock Flush() uses to bump the epoch, otherwise a Flush()
+      // landing between an outside-the-lock check and this write could
+      // publish a result the flush was supposed to have discarded.
+      if (epoch == m_epoch.load())
+      {
+        m_newest = 1 - m_newest;
+        m_results[m_newest] = std::move(result);
+      }
+      // else: Flush() happened while rendering; discard silently.
     }
   }
 
