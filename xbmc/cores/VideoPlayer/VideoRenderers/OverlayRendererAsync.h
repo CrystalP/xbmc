@@ -1,5 +1,5 @@
 /*
- *  Copyright (C) 2005-2026 Team Kodi
+ *  Copyright (C) 2026 Team Kodi
  *  This file is part of Kodi - https://kodi.tv
  *
  *  SPDX-License-Identifier: GPL-2.0-or-later
@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "cores/VideoPlayer/Interface/TimingConstants.h"
 #include "threads/CriticalSection.h"
 #include "threads/Event.h"
 #include "threads/Thread.h"
@@ -113,7 +114,7 @@ public:
     {
       if (!entry || entry->pts > displayPts)
         continue;
-      double diff = std::fabs(entry->pts - displayPts);
+
       if (entry->pts > bestPts)
       {
         bestPts = entry->pts;
