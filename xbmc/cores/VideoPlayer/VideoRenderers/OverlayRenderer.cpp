@@ -73,16 +73,6 @@ using namespace OVERLAY;
 
 namespace
 {
-// Half a frame's duration in DVD_TIME_BASE units, used as the pts-match
-// tolerance for GetBestResult(). Falls back to a 60fps assumption if the
-// frame duration isn't known yet (e.g. very first frame of playback).
-double HalfFrameTolerance(double frameDurationHint)
-{
-  if (frameDurationHint <= 0.0)
-    return DVD_TIME_BASE / 60.0 / 2.0;
-  return frameDurationHint / 2.0;
-}
-
 // Runs on the ass async worker thread only. 'lastAppliedGeneration' is
 // owned by CRenderer but never touched from any other thread - the worker
 // decides here, from the job's styleGeneration, whether to re-apply style,
@@ -761,14 +751,13 @@ void CRenderer::PrepareOverlays(int idx, double lookaheadPts)
     job.styleGeneration = m_styleGeneration;
     m_assRenderer->RequestRender(job);
 
-    // Consume: pick whichever of the last two completed results is
-    // closest to *this slot's own* pts (not requestPts - that is only
-    // where we are asking the worker to look next), within a half-frame
-    // tolerance. See the file-level design notes for why this, rather
-    // than "always take the latest", is what makes pause/seek/low-fps
-    // content converge correctly instead of flickering.
-    const double tolerance = HalfFrameTolerance(rOpts.frameWidth > 0 ? 0.0 : 0.0);
-    e.assResult = m_assRenderer->GetBestResult(e.pts, tolerance);
+    // Consume: pick whichever of the last two completed results has the
+    // newest pts not exceeding *this slot's own* pts (not requestPts -
+    // that is only where we are asking the worker to look next). Never
+    // shows a "future" result early; always accepts an arbitrarily stale
+    // "past" one rather than showing nothing while the worker catches up
+    // on a run of slow cues. See file-level design notes.
+    e.assResult = m_assRenderer->GetBestResult(e.pts);
 
     if (e.assResult && (!prevAssResult || prevAssResult.get() != e.assResult.get()) &&
         e.assResult->hasImage)

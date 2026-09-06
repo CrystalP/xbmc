@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -42,12 +43,18 @@ namespace OVERLAY
  *    happens (e.g. video frame rate below display refresh rate).
  *
  *  - GetBestResult() is also non-blocking and never waits on the worker.
- *    It keeps the last two completed results and returns whichever has a
- *    target pts closest to the caller-supplied 'displayPts', provided the
- *    difference is within 'tolerance'. This is what makes pause, seeks,
- *    and low-fps-on-high-refresh content converge on the correct result
- *    instead of transiently showing a "future" one that happened to finish
- *    early (see design notes at the top of OverlayRenderer.cpp).
+ *    It keeps the last two completed results and returns whichever has
+ *    the newest target pts that does not exceed the caller-supplied
+ *    'displayPts' - i.e. it will never return a result for a subtitle
+ *    that is not due to be shown yet (which would mean showing it
+ *    prematurely - the pause-transition case, see design notes at the
+ *    top of OverlayRenderer.cpp). Staleness in the other direction is
+ *    accepted without limit: an old-but-still-valid result is exactly
+ *    the degraded-but-smooth behaviour this class exists to provide
+ *    when the worker cannot keep up (e.g. a fast run of complex cues),
+ *    so it is always preferred over showing nothing while the worker
+ *    catches up. Returns nullptr only if every stored result is still
+ *    ahead of 'displayPts' (nothing suitable has ever been rendered yet).
  *
  *  - GetLatestResult() returns just the most recently completed result,
  *    with no pts matching. Used by the bitmap path, where a result is
@@ -92,19 +99,19 @@ public:
     m_requestEvent.Set();
   }
 
-  std::shared_ptr<const TResult> GetBestResult(double displayPts, double tolerance) const
+  std::shared_ptr<const TResult> GetBestResult(double displayPts) const
   {
     std::unique_lock lock(m_resultLock);
     std::shared_ptr<const TResult> best;
-    double bestDiff = tolerance;
+    double bestPts = -std::numeric_limits<double>::infinity();
     for (const auto& entry : m_results)
     {
-      if (!entry)
+      if (!entry || entry->pts > displayPts)
         continue;
       double diff = std::fabs(entry->pts - displayPts);
-      if (diff <= bestDiff)
+      if (entry->pts > bestPts)
       {
-        bestDiff = diff;
+        bestPts = entry->pts;
         best = entry;
       }
     }
