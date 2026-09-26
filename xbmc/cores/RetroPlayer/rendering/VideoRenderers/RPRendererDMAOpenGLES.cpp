@@ -37,12 +37,12 @@ CRPBaseRenderer* CRendererFactoryDMAOpenGLES::CreateRenderer(
   return new CRPRendererDMAOpenGLES(settings, context, std::move(bufferPool));
 }
 
-RenderBufferPoolVector CRendererFactoryDMAOpenGLES::CreateBufferPools(CRenderContext& context)
+RenderBufferPoolVector CRendererFactoryDMAOpenGLES::CreateBufferPools(CRenderContext&)
 {
   if (!CBufferObjectFactory::CreateBufferObject(false))
     return {};
 
-  return {std::make_shared<CRenderBufferPoolDMAOpenGLES>(context)};
+  return {std::make_shared<CRenderBufferPoolDMAOpenGLES>()};
 }
 
 CRPRendererDMAOpenGLES::CRPRendererDMAOpenGLES(const CRenderSettings& renderSettings,
@@ -52,13 +52,19 @@ CRPRendererDMAOpenGLES::CRPRendererDMAOpenGLES(const CRenderSettings& renderSett
 {
 }
 
+void CRPRendererDMAOpenGLES::FlushInternal()
+{
+  m_RBTexturesMap.clear();
+  CRPRendererOpenGLES::FlushInternal();
+}
+
 void CRPRendererDMAOpenGLES::Render(uint8_t alpha)
 {
   auto renderBuffer = static_cast<CRenderBufferDMA*>(m_renderBuffer);
   if (renderBuffer == nullptr)
     return;
 
-  Updateshaders();
+  UpdateShaders();
 
   // Use video shader preset
   if (m_bUseShaderPreset)

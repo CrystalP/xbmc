@@ -1265,6 +1265,18 @@
             <hidevalue>false</hidevalue>
           </control>
         </setting>
+        <setting id="videolibrary.languagedetails" type="integer" label="39213" help="39214">
+          <level>0</level>
+          <default>0</default> <!-- VIDEOLIBRARY_LANGUAGE_DETAILS_PLAYER -->
+          <constraints>
+            <options>
+              <option label="39215">0</option> <!-- VIDEOLIBRARY_LANGUAGE_DETAILS_PLAYER -->
+              <option label="39216">1</option> <!-- VIDEOLIBRARY_LANGUAGE_DETAILS_DEFAULT -->
+              <option label="39217">2</option> <!-- VIDEOLIBRARY_LANGUAGE_DETAILS_BEST -->
+            </options>
+          </constraints>
+          <control type="list" format="string" />
+        </setting>
         <setting id="videolibrary.groupmoviesets" type="boolean" label="20458" help="36145">
           <level>1</level>
           <default>false</default>
@@ -2790,7 +2802,7 @@
         </setting>
         <setting id="gamesgeneral.enablerewind" type="boolean" label="35203" help="35204">
           <level>0</level>
-          <default>true</default>
+          <default>false</default>
           <control type="toggle" />
         </setting>
         <setting id="gamesgeneral.rewindtime" type="integer" label="35205" help="35206">
@@ -2810,9 +2822,27 @@
           </control>
         </setting>
       </group>
+      <group id="2" label="35320">
+        <setting id="gamesgeneral.cheatspath" type="path" label="35321" help="35322">
+          <level>3</level>
+          <default></default>
+          <constraints>
+            <allowempty>true</allowempty>
+          </constraints>
+          <control type="button" format="path">
+            <heading>35321</heading>
+          </control>
+        </setting>
+      </group>
     </category>
     <category id="gamesachievements" label="15312">
-      <group id="1" label="15313">
+      <group id="1" label="35264">
+        <setting id="gamesachievements.createaccount" type="action" label="35371">
+          <level>0</level>
+          <control type="button" format="action" />
+        </setting>
+      </group>
+      <group id="2" label="15313">
         <setting id="gamesachievements.username" type="string" label="1048" help="35262">
           <level>0</level>
           <default></default>
@@ -2843,6 +2873,18 @@
           <visible>true</visible>
           <level>0</level>
           <default>false</default>
+          <control type="toggle" />
+        </setting>
+      </group>
+      <group id="3" label="35201">
+        <setting id="gamesachievements.encore" type="boolean" label="35303" help="35304">
+          <level>0</level>
+          <default>false</default>
+          <control type="toggle" />
+        </setting>
+        <setting id="gamesachievements.challengeindicator" type="boolean" label="35364" help="35366">
+          <level>0</level>
+          <default>true</default>
           <control type="toggle" />
         </setting>
       </group>

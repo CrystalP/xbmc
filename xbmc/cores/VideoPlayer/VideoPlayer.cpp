@@ -130,7 +130,9 @@ public:
     m_isPrefOriginal = StringUtils::EqualsNoCase(subLangSetting, LANGINFO::subLanguageOriginal);
     m_isPrefForced = StringUtils::EqualsNoCase(subLangSetting, LANGINFO::subLanguageForcedOnly);
     m_isPrefHearingImp = settings->GetBool(CSettings::SETTING_ACCESSIBILITY_SUBHEARING);
-    m_hideSameAudioLang = settings->GetBool(CSettings::SETTING_SUBTITLES_HIDESAMEAUDIOLANGUAGE);
+    // The setting keeps its value while disabled for none and forced_only
+    m_hideSameAudioLang = !m_isSubNone && !m_isPrefForced &&
+                          settings->GetBool(CSettings::SETTING_SUBTITLES_HIDESAMEAUDIOLANGUAGE);
 
     // Prefer the subtitle language setting; none, original and forced_only name no language, so
     // fall back to the audio setting, and default, original and mediadefault name none either,
@@ -152,6 +154,24 @@ public:
     return language.Matches(m_subLang);
   }
 
+  // \brief Whether a stream is in the language of the audio being played. Both languages must be
+  //        declared, a stream that states none is never assumed to match.
+  bool MatchesPlayedAudioLanguage(const CLanguageTag& language) const
+  {
+    return IsKnownLanguage(m_playedAudioLang) && IsKnownLanguage(language) &&
+           language.Matches(m_playedAudioLang);
+  }
+
+  // \brief Whether a stream is a forced one that takes the place of the subtitles hidden for being
+  //        in the audio language, which is also the language the settings ask for
+  bool IsForcedForHiddenAudioLanguage(const SelectionStream& ss) const
+  {
+    return m_hideSameAudioLang && (ss.flags & FLAG_FORCED) &&
+           MatchesPlayedAudioLanguage(ss.language) && MatchesSubtitleLanguage(ss.language);
+  }
+
+  // \brief Whether subtitles in the audio language are hidden
+  bool HidesSameAudioLanguage() const { return m_hideSameAudioLang; }
   // \brief Whether the subtitle language setting is "original"
   bool IsPreferredOriginal() const { return m_isPrefOriginal; }
   // \brief Whether the subtitle language setting is "forced_only"
@@ -180,11 +200,12 @@ public:
     const bool isSameSubLang = MatchesSubtitleLanguage(ss.language);
 
     // The user does not want to read subtitles in a language they are already listening to.
-    // Forced subtitles are kept, as they usually only translate foreign language parts.
-    // Both languages must be declared, a stream that states none is never assumed to match.
+    // Forced subtitles take their place, as they usually only translate foreign language parts.
+    if (IsForcedForHiddenAudioLanguage(ss))
+      return false;
+
     if (m_hideSameAudioLang && (ss.flags & FLAG_FORCED) == 0 &&
-        IsKnownLanguage(m_playedAudioLang) && IsKnownLanguage(ss.language) &&
-        ss.language.Matches(m_playedAudioLang))
+        MatchesPlayedAudioLanguage(ss.language))
     {
       return true;
     }
@@ -237,62 +258,32 @@ class PredicateAudioFilter
 {
 private:
   int currentAudioStream;
-  bool preferStereo;
+  StreamUtils::AudioPreferences preferences;
+
 public:
   explicit PredicateAudioFilter(int audioStream, bool preferStereo)
-    : currentAudioStream(audioStream)
-    , preferStereo(preferStereo)
+    : currentAudioStream(audioStream),
+      preferences(StreamUtils::AudioPreferences::Current())
   {
+    // Follows from the audio output layout rather than a setting
+    preferences.preferStereo = preferStereo;
   };
   bool operator()(const SelectionStream& lh, const SelectionStream& rh)
   {
+    // A stream remembered from a previous watch outranks everything
     PREDICATE_RETURN(lh.type_index == currentAudioStream
                      , rh.type_index == currentAudioStream);
 
-    const std::shared_ptr<CSettings> settings = CServiceBroker::GetSettingsComponent()->GetSettings();
-
-    if (!StringUtils::EqualsNoCase(settings->GetString(CSettings::SETTING_LOCALE_AUDIOLANGUAGE),
-                                   LANGINFO::audioLanguageMediaDefault))
-    {
-      if (!StringUtils::EqualsNoCase(settings->GetString(CSettings::SETTING_LOCALE_AUDIOLANGUAGE),
-                                     LANGINFO::audioLanguageOriginal))
-      {
-        const CLanguageTag& audioLanguage{g_langInfo.GetAudioLanguage(true)};
-        PREDICATE_RETURN(lh.language.Matches(audioLanguage), rh.language.Matches(audioLanguage));
-      }
-      else
-      {
-        PREDICATE_RETURN(lh.flags & StreamFlags::FLAG_ORIGINAL,
-          rh.flags & StreamFlags::FLAG_ORIGINAL);
-      }
-
-      bool hearingimp = settings->GetBool(CSettings::SETTING_ACCESSIBILITY_AUDIOHEARING);
-      PREDICATE_RETURN(!hearingimp ? !(lh.flags & StreamFlags::FLAG_HEARING_IMPAIRED) : lh.flags & StreamFlags::FLAG_HEARING_IMPAIRED
-                       , !hearingimp ? !(rh.flags & StreamFlags::FLAG_HEARING_IMPAIRED) : rh.flags & StreamFlags::FLAG_HEARING_IMPAIRED);
-
-      bool visualimp = settings->GetBool(CSettings::SETTING_ACCESSIBILITY_AUDIOVISUAL);
-      PREDICATE_RETURN(!visualimp ? !(lh.flags & StreamFlags::FLAG_VISUAL_IMPAIRED) : lh.flags & StreamFlags::FLAG_VISUAL_IMPAIRED
-                       , !visualimp ? !(rh.flags & StreamFlags::FLAG_VISUAL_IMPAIRED) : rh.flags & StreamFlags::FLAG_VISUAL_IMPAIRED);
-    }
-
-    if (settings->GetBool(CSettings::SETTING_VIDEOPLAYER_PREFERDEFAULTFLAG))
-    {
-      PREDICATE_RETURN(lh.flags & StreamFlags::FLAG_DEFAULT,
-                       rh.flags & StreamFlags::FLAG_DEFAULT);
-    }
-
-    if (preferStereo)
-      PREDICATE_RETURN(lh.channels == 2, rh.channels == 2);
-
-    // Order the remaining candidates the same way the library does
-    const int quality{
-        StreamUtils::CompareAudioQuality(lh.codec, lh.channels, rh.codec, rh.channels)};
-    if (quality != 0)
-      return quality > 0;
-
-    PREDICATE_RETURN(lh.flags & StreamFlags::FLAG_DEFAULT,
-                     rh.flags & StreamFlags::FLAG_DEFAULT);
-    return false;
+    // Everything below this is shared with the library
+    return StreamUtils::CompareAudioPreference({.language = lh.language,
+                                                .codec = lh.codec,
+                                                .channels = lh.channels,
+                                                .flags = lh.flags},
+                                               {.language = rh.language,
+                                                .codec = rh.codec,
+                                                .channels = rh.channels,
+                                                .flags = rh.flags},
+                                               preferences) > 0;
   };
 };
 
@@ -332,6 +323,15 @@ public:
                              STREAM_SOURCE_MASK(lh.source) == STREAM_SOURCE_TEXT;
     const bool isRexternal = STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_DEMUX_SUB ||
                              STREAM_SOURCE_MASK(rh.source) == STREAM_SOURCE_TEXT;
+
+    if (m_filter.HidesSameAudioLanguage())
+    {
+      // External subtitles stay ahead of the forced ones only when they are shown, as those in
+      // the audio language are hidden as well
+      PREDICATE_RETURN(isLexternal && relevant(lh), isRexternal && relevant(rh));
+      PREDICATE_RETURN(m_filter.IsForcedForHiddenAudioLanguage(lh),
+                       m_filter.IsForcedForHiddenAudioLanguage(rh));
+    }
 
     // prefer external subs (note that this prevents any fallback to internal subs)
     PREDICATE_RETURN(isLexternal, isRexternal);
@@ -909,6 +909,7 @@ bool CVideoPlayer::IsPlaying() const
 
 void CVideoPlayer::OnStartup()
 {
+  m_syncStartPtsWait.reset();
   m_CurrentVideo.Clear();
   m_CurrentAudio.Clear();
   m_CurrentSubtitle.Clear();
@@ -1606,6 +1607,8 @@ void CVideoPlayer::Process()
 
   Prepare();
 
+  unsigned int emptyPackets = 0;
+
   while (!m_bAbortRequest)
   {
     // check display lost
@@ -1717,8 +1720,15 @@ void CVideoPlayer::Process()
     {
       /* probably a empty packet, just free it and move on */
       CDVDDemuxUtils::FreeDemuxPacket(pPacket);
+
+      /* a source that cannot keep up hands these back as fast as we ask */
+      if (++emptyPackets > 10)
+        CThread::Sleep(10ms);
+
       continue;
     }
+
+    emptyPackets = 0;
 
     if (!pPacket)
     {
@@ -1760,6 +1770,7 @@ void CVideoPlayer::Process()
         CloseStream(m_CurrentAudio, true);
         CloseStream(m_CurrentVideo, true);
 
+        m_syncStartPtsWait.reset();
         m_CurrentAudio.Clear();
         m_CurrentVideo.Clear();
         m_CurrentSubtitle.Clear();
@@ -2101,6 +2112,29 @@ CacheInfo CVideoPlayer::GetCachingTimes()
   return info;
 }
 
+bool CVideoPlayer::ShouldDeferSync(bool ready, std::chrono::steady_clock::time_point now)
+{
+  // EOF can report a NOPTS start while the video worker keeps decoding. Ordinary
+  // PLAYER_STARTED messages put the worker in WAITSYNC, where waiting cannot help.
+  if (!ready || !m_CurrentVideo.starttimePending || m_CurrentAudio.starttime != DVD_NOPTS_VALUE ||
+      m_CurrentVideo.starttime != DVD_NOPTS_VALUE)
+  {
+    m_syncStartPtsWait.reset();
+    return false;
+  }
+
+  if (!m_syncStartPtsWait)
+    m_syncStartPtsWait = now;
+  else if (now - *m_syncStartPtsWait >= 2000ms)
+  {
+    m_syncStartPtsWait.reset();
+    CLog::Log(LOGWARNING,
+              "VideoPlayer::Sync - no valid start pts after 2000ms, anchoring clock anyway");
+    return false;
+  }
+  return true;
+}
+
 void CVideoPlayer::HandlePlaySpeed()
 {
   const bool isInMenu = IsInMenuInternal();
@@ -2271,25 +2305,31 @@ void CVideoPlayer::HandlePlaySpeed()
                  (m_CurrentAudio.packets == 0 && m_CurrentVideo.packets > threshold) ||
                  (!m_VideoPlayerVideo->AcceptsData() && m_VideoPlayerAudio->GetLevel() < 10);
 
-    if (m_CurrentAudio.syncState == IDVDStreamPlayer::SYNC_WAITSYNC &&
-        (m_CurrentAudio.avsync == CCurrentStream::AV_SYNC_CONT ||
-         m_CurrentVideo.syncState == IDVDStreamPlayer::SYNC_INSYNC))
+    const bool syncAudio = m_CurrentAudio.syncState == IDVDStreamPlayer::SYNC_WAITSYNC &&
+                           (m_CurrentAudio.avsync == CCurrentStream::AV_SYNC_CONT ||
+                            m_CurrentVideo.syncState == IDVDStreamPlayer::SYNC_INSYNC);
+    const bool syncVideo = m_CurrentVideo.syncState == IDVDStreamPlayer::SYNC_WAITSYNC &&
+                           (m_CurrentVideo.avsync == CCurrentStream::AV_SYNC_CONT ||
+                            m_CurrentAudio.syncState == IDVDStreamPlayer::SYNC_INSYNC);
+    const bool deferNoPts = ShouldDeferSync(video && audio && !syncAudio && !syncVideo,
+                                            std::chrono::steady_clock::now());
+
+    if (syncAudio)
     {
       m_CurrentAudio.syncState = IDVDStreamPlayer::SYNC_INSYNC;
       m_CurrentAudio.avsync = CCurrentStream::AV_SYNC_NONE;
       m_VideoPlayerAudio->SendMessage(
           std::make_shared<CDVDMsgDouble>(CDVDMsg::GENERAL_RESYNC, m_clock.GetClock()), 1);
     }
-    else if (m_CurrentVideo.syncState == IDVDStreamPlayer::SYNC_WAITSYNC &&
-             (m_CurrentVideo.avsync == CCurrentStream::AV_SYNC_CONT ||
-             m_CurrentAudio.syncState == IDVDStreamPlayer::SYNC_INSYNC))
+    else if (syncVideo)
     {
       m_CurrentVideo.syncState = IDVDStreamPlayer::SYNC_INSYNC;
       m_CurrentVideo.avsync = CCurrentStream::AV_SYNC_NONE;
+      m_CurrentVideo.starttimePending = false;
       m_VideoPlayerVideo->SendMessage(
           std::make_shared<CDVDMsgDouble>(CDVDMsg::GENERAL_RESYNC, m_clock.GetClock()), 1);
     }
-    else if (video && audio)
+    else if (video && audio && !deferNoPts)
     {
       double clock = 0;
       if (m_CurrentAudio.syncState == IDVDStreamPlayer::SYNC_WAITSYNC)
@@ -2335,11 +2375,13 @@ void CVideoPlayer::HandlePlaySpeed()
         clock = m_CurrentVideo.starttime - m_CurrentVideo.cachetotal;
       }
 
+      m_syncStartPtsWait.reset();
       m_clock.Discontinuity(clock);
       m_CurrentAudio.syncState = IDVDStreamPlayer::SYNC_INSYNC;
       m_CurrentAudio.avsync = CCurrentStream::AV_SYNC_NONE;
       m_CurrentVideo.syncState = IDVDStreamPlayer::SYNC_INSYNC;
       m_CurrentVideo.avsync = CCurrentStream::AV_SYNC_NONE;
+      m_CurrentVideo.starttimePending = false;
       m_VideoPlayerAudio->SendMessage(
           std::make_shared<CDVDMsgDouble>(CDVDMsg::GENERAL_RESYNC, clock), 1);
       m_VideoPlayerVideo->SendMessage(
@@ -2383,6 +2425,8 @@ void CVideoPlayer::HandlePlaySpeed()
       }
     }
   }
+  else
+    m_syncStartPtsWait.reset();
 
   // handle ff/rw
   if (m_playSpeed != DVD_PLAYSPEED_NORMAL && m_playSpeed != DVD_PLAYSPEED_PAUSE)
@@ -3518,6 +3562,7 @@ void CVideoPlayer::HandleMessages()
         m_CurrentVideo.cachetime = msg.cachetime;
         m_CurrentVideo.cachetotal = msg.cachetotal;
         m_CurrentVideo.starttime = msg.timestamp;
+        m_CurrentVideo.starttimePending = msg.timestampPending;
       }
       CLog::Log(LOGDEBUG, "CVideoPlayer::HandleMessages - player started {}", msg.player);
     }
@@ -4249,6 +4294,14 @@ bool CVideoPlayer::OpenStream(CCurrentStream& current, int64_t demuxerId, int iS
       }
       break;
     case StreamType::SUBTITLE:
+      // A PGS palette carries no colorimetry of its own; it is authored to
+      // match the video stream it accompanies, per BD-ROM Part 3.
+      if (hint.codec == AV_CODEC_ID_HDMV_PGS_SUBTITLE)
+      {
+        hint.colorSpace = m_CurrentVideo.hint.colorSpace;
+        hint.colorPrimaries = m_CurrentVideo.hint.colorPrimaries;
+        hint.colorTransferCharacteristic = m_CurrentVideo.hint.colorTransferCharacteristic;
+      }
       res = OpenSubtitleStream(hint);
       break;
     case StreamType::TELETEXT:
@@ -4306,6 +4359,7 @@ bool CVideoPlayer::OpenStream(CCurrentStream& current, int64_t demuxerId, int iS
 
 bool CVideoPlayer::OpenAudioStream(CDVDStreamInfo& hint, bool reset)
 {
+  m_syncStartPtsWait.reset();
   IDVDStreamPlayer* player = GetStreamPlayer(m_CurrentAudio.player);
   if(player == nullptr)
     return false;
@@ -4335,6 +4389,8 @@ bool CVideoPlayer::OpenAudioStream(CDVDStreamInfo& hint, bool reset)
 
 bool CVideoPlayer::OpenVideoStream(CDVDStreamInfo& hint, bool reset)
 {
+  m_syncStartPtsWait.reset();
+  m_CurrentVideo.starttimePending = false;
   if (m_pInputStream && m_pInputStream->IsStreamType(DVDSTREAM_TYPE_DVD))
   {
     /* set aspect ratio as requested by navigator for dvd's */
@@ -4584,6 +4640,7 @@ bool CVideoPlayer::CloseStream(CCurrentStream& current, bool bWaitForBuffers)
 
 void CVideoPlayer::FlushBuffers(double pts, bool accurate, bool sync)
 {
+  m_syncStartPtsWait.reset();
   CLog::Log(LOGDEBUG, "CVideoPlayer::FlushBuffers - flushing buffers");
 
   double startpts;
@@ -4602,6 +4659,7 @@ void CVideoPlayer::FlushBuffers(double pts, bool accurate, bool sync)
     m_CurrentVideo.inited = false;
     m_CurrentVideo.avsync = CCurrentStream::AV_SYNC_FORCE;
     m_CurrentVideo.starttime = DVD_NOPTS_VALUE;
+    m_CurrentVideo.starttimePending = false;
     m_CurrentSubtitle.inited = false;
     m_CurrentTeletext.inited = false;
     m_CurrentRadioRDS.inited  = false;

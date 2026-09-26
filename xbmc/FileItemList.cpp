@@ -240,11 +240,12 @@ void CFileItemList::Assign(const CFileItemList& itemlist, bool append)
 
   Append(itemlist);
 
-  //! @todo Is it intentional not to copy CFileItem properties, except path, label and property map?
+  //! @todo Is it intentional not to copy CFileItem properties, except path, label, art and property map?
   //! This is different from CFileItemList::Copy. Why?
   SetPath(itemlist.GetPath());
   SetLabel(itemlist.GetLabel());
   SetProperties(itemlist.GetProperties());
+  SetArt(itemlist.GetArt());
 
   //! @todo Is it intentional not to copy m_ignoreURLOptions, m_fastLookup, m_sortIgnoreFolders, m_content?
   //! This is (partly) different from CFileItemList::Copy. Why?
@@ -752,6 +753,7 @@ void CFileItemList::Stack()
           continue;
 
         bool fileFound{true};
+        std::string playPath;
         if (item->IsFolder())
         {
           // Look for media files in the folder
@@ -764,7 +766,7 @@ void CFileItemList::Stack()
 
           // Only expect one media file per folder (if >1 should be a file stack)
           if (items.GetFileCount() == 1)
-            ChangeFolderToFile(item, items[0]->GetPath());
+            playPath = items[0]->GetPath();
           else
           {
             CLog::LogF(LOGDEBUG,
@@ -778,11 +780,15 @@ void CFileItemList::Stack()
         if (fileFound)
         {
           // Add to stack vector
+          // Folder expressions capture no remainder, so folder parts group on their title alone
           stackCandidates.emplace_back(StackCandidate{.type = StackCandidateType::FOLDER_CANDIDATE,
                                                       .title = regExp.GetMatch(1),
                                                       .volume = regExp.GetMatch(2),
+                                                      .remainder = {},
                                                       .size = item->GetSize(),
-                                                      .index = i});
+                                                      .index = i,
+                                                      .playPath = playPath,
+                                                      .pattern = regExp.GetPattern()});
           break;
         }
       }
@@ -807,8 +813,11 @@ void CFileItemList::Stack()
         stackCandidates.emplace_back(StackCandidate{.type = StackCandidateType::FILE_CANDIDATE,
                                                     .title = regExp.GetMatch(1),
                                                     .volume = regExp.GetMatch(2),
+                                                    .remainder = regExp.GetMatch(3),
                                                     .size = item->GetSize(),
-                                                    .index = i});
+                                                    .index = i,
+                                                    .playPath = {},
+                                                    .pattern = regExp.GetPattern()});
         break;
       }
     }
@@ -822,23 +831,43 @@ void CFileItemList::Stack()
   std::ranges::sort(stackCandidates);
 
   // Count stack candidates
+  // Parts of the same stack should differ only in their volume
   std::map<CountedStackCandidate, int> countedCandidates;
   for (const auto& s : stackCandidates)
-    ++countedCandidates[{s.type, s.title}];
+    ++countedCandidates[{s.type, s.title, s.remainder}];
 
   // Find stacks
   std::vector<int> deleteItems;
   for (const auto& [candidate, count] :
        countedCandidates | std::views::filter([](const auto& c) { return c.second > 1; }))
   {
-    // Find all items in this stack
+    // Find all the parts of this stack (sorted by volume)
+    std::vector<StackCandidate> parts;
+    std::ranges::copy(stackCandidates | std::views::filter(
+                                            [type = candidate.type, title = candidate.title,
+                                             remainder = candidate.remainder](const auto& item) {
+                                              return item.type == type && item.title == title &&
+                                                     item.remainder == remainder;
+                                            }),
+                      std::back_inserter(parts));
+
+    // Every part of a stack should be a different volume
+    if (std::ranges::adjacent_find(parts, {}, &StackCandidate::volume) != parts.end())
+    {
+      CLog::LogF(LOGDEBUG,
+                 "Skipping stack '{}' - {} parts found, but not all of a different volume",
+                 candidate.title, parts.size());
+      continue;
+    }
+
     std::vector<int> stack;
     int64_t size{0};
-    for (const auto& stackItem :
-         stackCandidates |
-             std::views::filter([type = candidate.type, title = candidate.title](const auto& item)
-                                { return item.type == type && item.title == title; }))
+    for (const auto& stackItem : parts)
     {
+      // Now the stack is known to have more than one part
+      if (!stackItem.playPath.empty())
+        ChangeFolderToFile(Get(stackItem.index), stackItem.playPath);
+
       stack.emplace_back(stackItem.index);
       size += stackItem.size;
       if (stack.size() > 1)
@@ -851,6 +880,9 @@ void CFileItemList::Stack()
     const std::string stackPath{baseItem->IsRAR()
                                     ? baseItem->GetPath()
                                     : CStackDirectory::ConstructStackPath(*this, stack)};
+
+    CLog::LogF(LOGDEBUG, "Stacked {} parts into '{}' (stack expression '{}')", stack.size(),
+               CURL::GetRedacted(stackPath), parts[0].pattern);
 
     // First item in stack becomes the stack
     std::string stackName{candidate.title};

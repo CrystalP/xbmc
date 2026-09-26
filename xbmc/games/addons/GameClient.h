@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include "GameClientRestoreResult.h"
 #include "GameClientSubsystem.h"
 #include "addons/binary-addons/AddonDll.h"
 #include "addons/kodi-dev-kit/include/kodi/addon-instance/Game.h"
@@ -33,7 +34,9 @@ class IStreamManager;
 
 namespace GAME
 {
+class CGameClientDiscModel;
 
+class CGameClientCheats;
 class CGameClientCheevos;
 class CGameClientInGameSaves;
 class CGameClientInput;
@@ -125,6 +128,7 @@ public:
   ~CGameClient() override;
 
   // Game subsystems (const)
+  const CGameClientCheats& Cheats() const { return *m_subsystems.Cheats; }
   const CGameClientCheevos& Cheevos() const { return *m_subsystems.Cheevos; }
   const CGameClientDiscs& Discs() const { return *m_subsystems.Discs; }
   const CGameClientInput& Input() const { return *m_subsystems.Input; }
@@ -132,6 +136,7 @@ public:
   const CGameClientStreams& Streams() const { return *m_subsystems.Streams; }
 
   // Game subsystems (mutable)
+  CGameClientCheats& Cheats() { return *m_subsystems.Cheats; }
   CGameClientCheevos& Cheevos() { return *m_subsystems.Cheevos; }
   CGameClientDiscs& Discs() { return *m_subsystems.Discs; }
   CGameClientInput& Input() { return *m_subsystems.Input; }
@@ -167,10 +172,10 @@ public:
   // Playback control
   bool RequiresGameLoop() const { return m_bRequiresGameLoop; }
   bool IsPlaying() const { return m_bIsPlaying; }
-  size_t GetSerializeSize() const { return m_serializeSize; }
   double GetFrameRate() const { return m_framerate.load(); }
   double GetSampleRate() const { return m_samplerate.load(); }
-  void RunFrame();
+  void PollInput();
+  void RunFrame(bool pollInput = true);
 
   /*!
    * \brief Tell the client what speed the player is running at
@@ -186,18 +191,22 @@ public:
   void SetPlaybackSpeed(double speed) { m_playbackSpeed = speed; }
 
   // Access memory
-  size_t SerializeSize() const { return m_serializeSize; }
+  enum class SerializeSizeMode
+  {
+    Lazy,
+    Restore,
+  };
+  size_t GetSerializeSize(SerializeSizeMode mode = SerializeSizeMode::Lazy) const;
   bool Serialize(uint8_t* data, size_t size);
-  bool Deserialize(const uint8_t* data, size_t size);
+  RestoreResult Deserialize(const uint8_t* data,
+                            size_t size,
+                            const CGameClientDiscModel* discState = nullptr);
 
   /*!
    * \brief Hold the client still for the duration of a savestate snapshot
    *
-   * The emulator's memory and the achievement state have to describe the same
-   * frame. Both are read from a worker thread while the game loop runs, so
-   * locking each read on its own is not enough - RunFrame() would still be
-   * free to advance between them, pairing one frame's memory with another
-   * frame's achievement progress.
+   * Callers combining core and achievement state hold this lock across both
+   * operations. Acquire the playback lock first when both locks are needed.
    *
    * The lock is recursive, so the calls made while holding it may take it
    * again.
@@ -224,15 +233,9 @@ public:
    */
   bool DeserializeAchievements(const uint8_t* data, size_t size);
 
-  /*!
-   * \brief Give the client the RetroAchievements account to sign in with
-   *
-   * The account is held by Kodi, which owns the settings it is entered in.
-   */
-  bool SetRetroAchievementsCredentials(const std::string& username, const std::string& token);
-
   // Implementation of IHwFramebufferCallback
-  void HardwareContextReset() override;
+  bool HardwareContextReset() override;
+  void HardwareContextDestroy() override;
 
   /*!
    * @brief To get the interface table used between addon and kodi
@@ -251,6 +254,7 @@ private:
                           RETRO::IStreamManager& streamManager,
                           IGameInputCallback* input);
   bool LoadGameInfo();
+  bool UnloadGame();
   void NotifyError(GAME_ERROR error);
   std::string GetMissingResource();
 
@@ -266,6 +270,7 @@ private:
   static void cb_close_game(KODI_HANDLE kodiInstance);
   static double cb_get_playback_speed(KODI_HANDLE kodiInstance);
   static void cb_set_game_timing(KODI_HANDLE kodiInstance, const game_system_timing* timingInfo);
+  static bool cb_start_stream(KODI_HANDLE kodiInstance, KODI_GAME_STREAM_HANDLE stream);
   static KODI_GAME_STREAM_HANDLE cb_open_stream(KODI_HANDLE kodiInstance,
                                                 const game_stream_properties* properties);
   static bool cb_get_stream_buffer(KODI_HANDLE kodiInstance,
@@ -293,6 +298,31 @@ private:
                                             unsigned int count);
   static void cb_rc_on_server_error(KODI_HANDLE kodiInstance, const char* message, const char* api);
   static void cb_rc_on_connection_changed(KODI_HANDLE kodiInstance, bool connected);
+  static void cb_rc_on_challenge_indicator(KODI_HANDLE kodiInstance,
+                                           const game_rc_achievement_challenge* data,
+                                           bool show);
+  static void cb_rc_on_achievement_progress_show(
+      KODI_HANDLE kodiInstance, const struct game_rc_achievement_progress_indicator* data);
+  static void cb_rc_on_achievement_progress_update(
+      KODI_HANDLE kodiInstance, const struct game_rc_achievement_progress_indicator* data);
+  static void cb_rc_on_achievement_progress_hide(
+      KODI_HANDLE kodiInstance, const struct game_rc_achievement_progress_indicator* data);
+  static void cb_rc_on_leaderboard_started(KODI_HANDLE kodiInstance,
+                                           const struct game_rc_leaderboard* data);
+  static void cb_rc_on_leaderboard_failed(KODI_HANDLE kodiInstance,
+                                          const struct game_rc_leaderboard* data);
+  static void cb_rc_on_leaderboard_submitted(KODI_HANDLE kodiInstance,
+                                             const struct game_rc_leaderboard* data);
+  static void cb_rc_on_leaderboard_tracker_show(KODI_HANDLE kodiInstance,
+                                                const struct game_rc_leaderboard_tracker* data);
+  static void cb_rc_on_leaderboard_tracker_update(KODI_HANDLE kodiInstance,
+                                                  const struct game_rc_leaderboard_tracker* data);
+  static void cb_rc_on_leaderboard_tracker_hide(KODI_HANDLE kodiInstance,
+                                                const struct game_rc_leaderboard_tracker* data);
+  static void cb_rc_on_leaderboard_scoreboard(KODI_HANDLE kodiInstance,
+                                              const struct game_rc_leaderboard_scoreboard* data);
+  static void cb_rc_on_reset(KODI_HANDLE kodiInstance);
+  static void cb_rc_on_subset_completed(KODI_HANDLE kodiInstance, const char* title);
   //@}
 
   /*!
@@ -341,7 +371,7 @@ private:
   std::atomic<double> m_playbackSpeed{1.0};
   std::string m_gamePath;
   bool m_bRequiresGameLoop = false;
-  size_t m_serializeSize = 0;
+  mutable size_t m_serializeSize = 0;
   IGameInputCallback* m_input = nullptr; // The input callback passed to OpenFile()
   std::atomic<double> m_framerate{0.0}; // Video frame rate (fps)
   std::atomic<double> m_samplerate{0.0}; // Audio sample rate (Hz)
@@ -350,7 +380,7 @@ private:
   // In-game saves
   std::unique_ptr<CGameClientInGameSaves> m_inGameSaves;
 
-  CCriticalSection m_critSection;
+  mutable CCriticalSection m_critSection;
 };
 
 } // namespace GAME

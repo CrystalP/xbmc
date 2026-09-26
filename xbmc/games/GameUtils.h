@@ -63,6 +63,16 @@ public:
   static bool ChooseAndSetDefaultGameClient(const CFileItem& item);
 
   /*!
+   * \brief The game client playing right now, if a game is playing
+   *
+   * For callers outside the player that need the client itself rather than
+   * what it is playing, such as the OSD.
+   *
+   * \return The client, or empty if no game is playing
+   */
+  static GameClientPtr GetPlayingGameClient();
+
+  /*!
    * \brief Check if the file extension is supported by an add-on in
    *        a local or remote repository
    *
@@ -103,10 +113,19 @@ private:
   static std::string GetDefaultGameClient(const std::string& path,
                                           const GameClientVector& candidates);
 
-  static void GetGameClients(const CFileItem& file,
-                             GameClientVector& candidates,
-                             GameClientVector& installable,
-                             bool& bHasVfsGameClient);
+  static void GetInstalledGameClients(const CFileItem& file,
+                                      GameClientVector& candidates,
+                                      bool& bHasVfsGameClient);
+
+  /*!
+   * \brief Get the game clients that could be installed to open a file
+   *
+   * Reads the whole add-on repository, so it is only worth asking once the
+   * installed clients have failed to answer the question.
+   */
+  static void GetInstallableGameClients(const CFileItem& file,
+                                        GameClientVector& installable,
+                                        bool& bHasVfsGameClient);
   static void GetGameClients(const ADDON::VECADDONS& addons,
                              const CURL& translatedUrl,
                              GameClientVector& candidates,

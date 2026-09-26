@@ -36,9 +36,7 @@ CGUITextureGLES::CGUITextureGLES(
   : CGUITexture(posX, posY, width, height, texture)
 {
   m_renderSystem = dynamic_cast<CRenderSystemGLES*>(CServiceBroker::GetRenderSystem());
-  unsigned int major, minor;
-  m_renderSystem->GetRenderVersion(major, minor);
-  m_isGLES20 = major == 2;
+  m_isGLES20 = !m_renderSystem->SupportsTextureSwizzle();
 }
 
 CGUITextureGLES* CGUITextureGLES::Clone() const
@@ -121,15 +119,7 @@ void CGUITextureGLES::Begin(KODI::UTILS::COLOR::Color color)
 
   if (hasAlpha)
   {
-    // See CGUIFontTTFGLES::FirstBegin for rationale. SDR uses accumulator
-    // coverage alpha; HDR FBO composite uses a compensated squared-alpha
-    // blend because the FBO is color-transformed to PQ/HLG before composite,
-    // and alpha blending in non-linear space is mathematically wrong.
-    if (CServiceBroker::GetWinSystem()->IsHdrComposite())
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA,
-                          GL_ONE_MINUS_SRC_ALPHA);
-    else
-      glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_ONE);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_ONE);
     glEnable( GL_BLEND );
   }
   else
@@ -297,7 +287,7 @@ void CGUITextureGLES::DrawQuad(const CRect& rect,
 
   if (blending)
   {
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE_MINUS_DST_ALPHA, GL_ONE);
     glEnable(GL_BLEND);
   }
   else

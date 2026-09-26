@@ -19,6 +19,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -304,6 +305,10 @@ public:
   bool GetFileInfo(const std::string& strFilenameAndPath, CVideoInfoTag& details, int idFile = -1);
 
   int GetPathId(const std::string& strPath);
+  /*! \brief Get the id of a path, also accepting the zip:// or archive:// equivalent of an
+   *         archive path (AddPath() stores these interchangeably).
+   */
+  int GetArchiveOrAliasPathId(const std::string& strPath);
   int GetTvShowId(const std::string& strPath);
   int GetEpisodeId(const std::string& strFilenameAndPath, int idEpisode=-1, int idSeason=-1); // idEpisode, idSeason are used for multipart episodes as hints
   int GetSeasonId(int idShow, int season) const;
@@ -391,6 +396,12 @@ public:
     int idFile{-1};
     VideoDbContentType mediaType{-1};
     int idMedia{-1};
+    std::string title{};
+
+    //! Which of a movie's assets holds the playlist. Unset for an episode, which is named by its
+    //! title instead.
+    std::optional<VideoAssetType> itemType{};
+    CDateTime dateAdded{};
   };
 
   /*!
@@ -399,6 +410,12 @@ public:
    * \return vector array of playlist numbers and idFiles
    */
   std::vector<PlaylistInfo> GetPlaylistsByPath(const std::string& path);
+
+  /*!
+   * \brief Announce that a library item has changed, so that widgets and other listeners reload it
+   * \param[in] content The item's media type
+   */
+  static void AnnounceUpdate(const std::string& content, int id);
 
   void SetTrailerForMovie(int idMovie, const std::string& trailer);
 
@@ -520,6 +537,7 @@ public:
   bool GetBookMarkForEpisode(const CVideoInfoTag& tag, CBookmark& bookmark) const;
   void AddBookMarkForEpisode(const CVideoInfoTag& tag, const CBookmark& bookmark);
   void DeleteBookMarkForEpisode(const CVideoInfoTag& tag);
+  void DeleteBookMarkForEpisode(int idEpisode);
   bool GetResumePoint(CVideoInfoTag& tag);
   bool GetStreamDetails(CFileItem& item);
   bool GetStreamDetails(CVideoInfoTag& tag);
@@ -1296,7 +1314,6 @@ private:
                                   std::map<int, bool> &pathsDeleteDecisions, std::string &deletedFileIDs, bool silent);
 
   static void AnnounceRemove(const std::string& content, int id, bool scanning = false);
-  static void AnnounceUpdate(const std::string& content, int id);
 
   static CDateTime GetDateAdded(const std::string& filename, CDateTime dateAdded = CDateTime());
 };

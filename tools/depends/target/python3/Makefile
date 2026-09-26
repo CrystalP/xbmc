@@ -8,7 +8,10 @@ DEPS = ../../Makefile.include Makefile PYTHON3-VERSION ../../download-files.incl
                                  13-wasm-em-config-clang.patch \
                                  14-wasm-build-wasm-default.patch \
                                  15-wasm-static-hacl.patch \
-                                 16-ios-platform.patch
+                                 16-ios-static-nonframework.patch \
+                                 17-ios-simulator-version-min.patch \
+                                 18-ios-objc-fallback.patch \
+                                 19-tvos-disable-fork-exec.patch
 
 ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
   ifeq ($(OS), darwin_embedded)
@@ -28,6 +31,10 @@ ifeq ($(findstring apple-darwin, $(HOST)), apple-darwin)
   endif
   # required for _localemodule
   EXTRA_CONFIGURE+= ac_cv_lib_intl_textdomain=yes
+
+  # Python already handles older OSs correctly internally
+  # it's the only way to override config.site's values as they come last (actually just CPPFLAGS is enough)
+  EXTRA_CONFIGURE+= CFLAGS=-Wno-error=unguarded-availability-new CPPFLAGS=-Wno-error=unguarded-availability-new
 endif
 
 ifeq ($(OS), linux)
@@ -81,10 +88,14 @@ ifeq ($(OS), darwin_embedded)
   PY_MODULES+= py_cv_module__posixsubprocess=n/a \
                py_cv_module__scproxy=n/a
 
+  # A real iOS triplet, not the tree's darwin one: CPython derives ac_sys_system,
+  # the deployment target and the simulator split from it.
   ifeq ($(findstring iphone,$(TARGET_PLATFORM)),iphone)
-    # see 16-ios-platform.patch
-    export IPHONEOS_DEPLOYMENT_TARGET=$(APPLE_DEPLOYMENT_TARGET)
-    export _host_device=$(subst iphone,,$(TARGET_PLATFORM))
+    PYTHON_HOST=$(subst -darwin,-ios$(APPLE_DEPLOYMENT_TARGET),$(HOST))
+    ifeq ($(TARGET_PLATFORM),iphonesimulator)
+      PYTHON_HOST:=$(PYTHON_HOST)-simulator
+    endif
+    EXTRA_CONFIGURE+= --host=$(PYTHON_HOST)
   endif
 endif
 
@@ -127,7 +138,15 @@ ifeq ($(OS),wasm)
 	cd $(PLATFORM); patch -p1 -i ../15-wasm-static-hacl.patch
 endif
 ifeq ($(findstring iphone,$(TARGET_PLATFORM)),iphone)
-	cd $(PLATFORM); patch -p1 -i ../16-ios-platform.patch
+# These three patches are all merged upstream now (python/cpython#156110,
+# #156116, #156113); drop them when we bump python past 3.16.
+	cd $(PLATFORM); patch -p1 -i ../16-ios-static-nonframework.patch
+	cd $(PLATFORM); patch -p1 -i ../17-ios-simulator-version-min.patch
+	cd $(PLATFORM); patch -p1 -i ../18-ios-objc-fallback.patch
+endif
+ifeq ($(findstring appletv,$(TARGET_PLATFORM)),appletv)
+	# TODO: drop once tvOS is built as a real Python platform
+	cd $(PLATFORM); patch -p1 -i ../19-tvos-disable-fork-exec.patch
 endif
 	cd $(PLATFORM); $(AUTORECONF)
 	cd $(PLATFORM); $(CONFIGURE)

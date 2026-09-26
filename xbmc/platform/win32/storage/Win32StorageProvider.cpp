@@ -39,8 +39,14 @@ void CWin32StorageProvider::Initialize()
     CServiceBroker::GetMediaManager().SetHasOpticalDrive(true);
   else
     CLog::LogF(LOGDEBUG, "No optical drive found.");
+}
 
+void CWin32StorageProvider::ScanForPresentMedia()
+{
 #ifdef HAS_OPTICAL_DRIVE
+  std::vector<CMediaSource> vShare;
+  GetDrivesByType(vShare, DVD_DRIVES);
+
   // A disc already present in a drive at startup is added as a source but does
   // NOT autorun, matching Linux
   for (const auto& it : vShare)
@@ -226,8 +232,11 @@ void CWin32StorageProvider::GetDrivesByType(std::vector<CMediaSource>& localDriv
         wchar_t cVolumeName[100] = {};
         int nResult = 0;
         // don't use GetVolumeInformation on fdd's as the floppy controller may be enabled in Bios but
-        // no floppy HW is attached which causes huge delays.
-        if (uDriveType != DRIVE_REMOTE && !letter.empty() && letter != L"A:" && letter != L"B:")
+        // no floppy HW is attached which causes huge delays. Nor on optical drives when only the
+        // drive letters are wanted, as it waits on a drive that is spinning up.
+        const bool wantVolumeInfo{eDriveType != DVD_DRIVES || bonlywithmedia};
+        if (wantVolumeInfo && uDriveType != DRIVE_REMOTE && !letter.empty() && letter != L"A:" &&
+            letter != L"B:")
         {
           DWORD len = sizeof(cVolumeName) / sizeof(wchar_t);
           nResult = GetVolumeInformationW(strWdrive.c_str(), cVolumeName, len, 0, 0, 0, nullptr, 0);
@@ -280,6 +289,7 @@ void CWin32StorageProvider::GetDrivesByType(std::vector<CMediaSource>& localDriv
         }
         StringUtils::Replace(share.strName, ":\\", ":");
         StringUtils::Replace(share.strPath, ":\\", ":");
+        share.strDevicePath = share.strPath;
         share.m_ignore= true;
         if( !bUseDCD )
         {
